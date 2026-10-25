@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package [[.Service]].v1;
+
+option go_package = "[[.Module]]/api/gen/go/[[.Service]]/v1;[[.Service]]v1";
+
+message [[.API.RPC]]Request {[[range .API.Fields]]
+  string [[.Name]] = [[.Number]];[[end]]
+}
+
+message [[.API.RPC]]Response {}

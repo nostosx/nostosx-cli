@@ -1,0 +1,279 @@
+# [[.Name]]
+
+由 nostosx-cli 生成的干净 Go 工程骨架。本应用自行维护源码，普通构建和运行不依赖
+CLI 或 nostosx-starter；契约开发调用 CLI，不复制工具源码。
+完整业务参考保留在独立的 Starter 项目中。
+
+[English](README.md)
+
+## 开始
+
+使用 Go **1.27.3**、Make 和 `GOWORK=off`，下载固定版本的公开依赖：
+
+```sh
+export GOWORK=off
+go mod download
+export API_TOKEN="$(openssl rand -hex 32)"
+```
+
+`API_TOKEN` 至少包含 32 个无空白的可打印 ASCII 字符，请妥善保管。
+命令使用 POSIX shell，Windows 可使用 Git Bash。
+
+[[if eq .Layout "monolith"]]当前布局包含可运行的空宿主：
+
+```sh
+go run ./cmd/server
+```
+
+在另一终端检查：
+
+```sh
+curl http://127.0.0.1:8080/readyz
+curl http://127.0.0.1:8080/livez
+```
+
+默认没有业务路由，Ctrl+C 停止。HTTP/gRPC 默认端口为 8080/9090，
+可用 `-addr`、`-grpc-addr` 修改。
+[[else]]当前布局尚无服务进程，按下一节添加上下文和服务后再启动入口。
+共享传输包和可选的 agent 包已可以构建和测试。
+[[end]]
+HTTP 健康检查无需认证，gRPC 健康检查需要 `authorization: Bearer <API_TOKEN>`
+元信息。两种传输均使用明文并限制为字面量 loopback IP。
+开放业务方法或跨主机部署前请阅读 [SECURITY.md](SECURITY.md)。
+工程不预置数据库、迁移、业务 API、项目元数据文件或 archtest 包。
+
+## 添加上下文和服务
+
+将 `NOSTOSX` 设置为从 nostosx-cli 构建的 CLI 二进制绝对路径，在本工程根目录执行：
+
+```sh
+export NOSTOSX=/absolute/path/to/nostosx
+"$NOSTOSX" add context order --dir .
+"$NOSTOSX" add service order --dir .
+```
+
+`add context` 只创建包声明：
+
+```text
+domain/order/doc.go
+application/order/doc.go
+application/order/command/doc.go
+application/order/query/doc.go
+```
+
+不会生成用例、仓储或假数据。领域代码不依赖传输和持久化。
+实现业务时可在应用层使用 `github.com/nostosx/servex/cqrs` 定义真实的类型化
+Command、Query、Handler 及稳定的操作元信息。日志、指标和追踪在服务装配层选择；
+需要时可引入 `github.com/nostosx/servex-contrib/middleware@v1.1.0` 的类型化
+CQRS 中间件，初始工程不依赖它。
+
+`add service` 要求已有同名上下文，创建：
+
+```text
+api/proto/order/v1/order.proto        空的 OrderService 契约
+api/http/routes/order.yaml           HTTP 绑定说明
+api/http/operations/order.yaml       响应配置说明
+services/order/module.go             显式注册函数
+services/order/module_test.go        注册回归测试
+services/order/internal/port/rpc/     protobuf 适配器
+services/order/cmd/order/main.go      独立进程入口
+```
+
+先安装生成工具：
+
+```sh
+go install github.com/bufbuild/buf/cmd/buf@v1.72.0
+```
+
+将 Buf 放入 PATH。契约构建由 CLI 完成，不附带工具源码，也不依赖 Python。
+再生成、整理依赖并启动：
+
+```sh
+make generate
+go mod tidy
+go run ./services/order/cmd/order -addr 127.0.0.1:8081 -grpc-addr 127.0.0.1:9091
+```
+
+空服务只注册契约并提供进程健康检查。添加上下文和服务只创建新文件，
+不改写已有装配和依赖。
+
+向服务添加 API：
+
+```sh
+"$NOSTOSX" add api create-order --service order --method POST --path /v1/orders --dir .
+"$NOSTOSX" add api get-order --service order --method GET --path '/v1/orders/{order_id}' --dir .
+make generate
+go get github.com/grpc-ecosystem/grpc-gateway/v2@v2.29.0
+go mod tidy
+make api-check
+```
+
+`add api` 在 `api/proto/order/v1/order.proto` 中插入 import 和 RPC，
+在同目录创建 `create_order.proto`，另创建
+`api/http/routes/order_create_order.yaml`，以及
+`services/order/internal/port/rpc` 下的 `create_order.go` 和对应测试。
+API 名使用小写连字符 slug，目标必须是已有的生成式 v1 服务。
+支持 GET、POST、PUT、PATCH、DELETE；路径支持字面量和简单 `{field_name}`，
+参数生成对应的 string 请求字段，其余请求及响应字段由应用定义。
+POST/PUT/PATCH 使用 `body: "*"`。
+
+`go get` 将 gateway 运行库固定到生成插件版本，初始骨架不需要它。
+已有应用若已使用更新的运行库，调整版本前先确认兼容性。
+
+RPC 先返回 `Unimplemented`，实现时将占位测试替换为真实行为测试，
+按需将 Proto 消息映射到独立的应用 CQRS 用例。命令不会挂载 HTTP 处理器：
+在 `module.go` 中明确认证与授权，再显式注册生成的 gateway 处理器。
+OpenAPI 输出本身不开放运行中的端点。响应配置仍放在 `api/http/operations/`。
+
+生成前检查已有输出、符号、Handler 方法及字段，以及跨服务的路由重叠。
+内联 `google.api.http`、通配选择器、自定义方法和复杂路径模式需手工维护。
+校验并写入新文件后才替换目标服务 Proto；普通失败会回滚本次输出。
+进程中断可能留下部分文件及锁，重试前先检查。
+
+仅 gRPC 的 API 可以在 `add api` 时同时省略 `--method` 与 `--path`，
+只生成消息、适配器和测试，不添加 HTTP 映射，也不要求 gateway 运行库。
+两个 HTTP 参数必须同时提供或同时省略。
+
+如果先编写 Proto 契约，再通过 CLI 补齐缺失的 unary 方法：
+
+```sh
+"$NOSTOSX" api scaffold --service order --dir .
+make generate NOSTOSX="$NOSTOSX"
+go mod tidy
+"$NOSTOSX" doctor --dir . --json
+```
+
+补全在离线模式下解析 `api/proto` 本地导入及 Protobuf 内置 well-known types，
+其他依赖需先放入该目录。签名匹配的已有实现保持不动，只新增返回 `Unimplemented`
+的缺失方法文件，重复执行不会新增文件。不生成占位测试、HTTP 映射或业务用例；
+实现认证、授权与应用调用后，再编写行为测试。流式方法、不兼容签名、构建约束、
+平台专属文件和输出冲突需手工处理。签名使用具体生成消息类型，不支持类型别名和
+点导入。补全共用工程锁，普通错误会回滚本次创建的文件。
+
+Doctor 只读取工程配置并运行可信的 Go/Buf 版本命令，不安装工具、不下载依赖、
+不修改文件。检查 Go 至少 1.27.3，有 Proto 时要求 Buf 1.72.0，空骨架跳过 Buf。
+省略 `--json` 可查看文本报告，检查失败退出码为 1。
+Doctor 不替代 `make check` 与 `make api-check`。
+
+[[if eq .Layout "monolith"]]在单体内运行 `order`：在 `cmd/server/main.go` 导入
+`[[.Module]]/services/order`，将 `bootstrap.RunCLI` 最后的 `nil` 注册参数
+改为 `order.Register`。多个服务可以传入符合 `bootstrap.Register` 的函数，
+依次调用各服务注册并返回错误。独立服务入口仍可使用；部署时明确选择运行方式，
+避免意外重复启动同一业务实例。
+[[else]]按需添加其他同名上下文和服务，在不同终端分别运行入口，指定不同的
+`-addr` 和 `-grpc-addr`。服务共用一个 Go 模块，各自管理进程生命周期。
+私有适配器放在 `services/<name>/internal`；跨服务通过显式客户端端口调用，
+不直接引用对方的内部实现。
+[[end]]
+## 契约
+
+Makefile 默认通过 `go run` 调用 CLI v1.0.0，不将工具加入应用依赖图。
+该版本公开发布前，或需要验证源码构建时，应指定二进制的绝对路径：
+
+```sh
+export NOSTOSX=/absolute/path/to/nostosx
+make generate api-check NOSTOSX="$NOSTOSX"
+```
+
+`NOSTOSX_VERSION` 可选择其他经审查的版本。普通构建、测试和运行不调用 CLI。
+也可以直接执行契约命令：
+
+```sh
+nostosx api generate --dir .
+nostosx api lint --dir .
+nostosx api check --dir .
+nostosx api breaking --dir . --against '.git#ref=main'
+```
+
+初始工程没有 Proto，首次构建无需 Buf，`make api-check` 接受空契约状态。
+添加服务后执行：
+
+```sh
+make api-lint
+make generate
+go mod tidy
+make api-check
+```
+
+生成链路固定为 Buf 1.72.0、protoc-gen-go v1.36.12、protoc-gen-go-grpc v1.6.0
+及 grpc-gateway/openapiv2 v2.29.0。插件通过显式版本的 `go run` 执行，
+可能下载模块。Go/gRPC/gateway 输出在 `api/gen/go/`，
+`api/http/openapi.swagger.json` 使用 OpenAPI 2（Swagger 2.0），不要手动修改生成文件。
+空服务不会生成 gateway 方法或 OpenAPI 业务路径。
+
+契约与 HTTP 配置属于传输边界，应用和领域包不导入生成的 protobuf 或 gRPC 类型。
+请求和响应的转换放在 `services/<name>/internal/port/rpc`。
+真实用例采用“动作 + 业务对象”文件名和同名测试，使用小型、由调用方定义的接口。
+
+契约生成与 CLI 新增操作共用 `.nostosx.lock`。等待持有进程结束；
+仅在确认其已停止后清理残留锁。插件失败时保留旧输出，成功后清理过期输出。
+`api check` 只比较产物路径和字节，不替换已有文件。发布产物遇到普通错误时尝试回滚；
+进程终止可能留下锁或暂存目录。工程配置与 Go、Buf 工具必须可信，契约命令不提供沙箱隔离。
+兼容性检查需要先建立纳入 Git 的契约基线，再执行
+`make api-breaking API_BASE=<revision>`；工具不会自动创建基线。
+[[if .Agent]]
+## 可选的 agent 接入
+
+`infrastructure/agent` 提供模型配置和有界执行器，不自动启动、不暴露 HTTP/gRPC
+接口，也不预设业务工具。在应用启动时构建一个共享执行器，再注入需要它的用例。
+启动装配可以使用如下辅助函数：
+
+```go
+package assembly
+
+import (
+    "errors"
+
+    "[[.Module]]/infrastructure/agent"
+)
+
+func Agent() (*agent.Runner, error) {
+    model, err := agent.ModelFromEnv()
+    if err != nil {
+        return nil, err
+    }
+    if model == nil {
+        return nil, errors.New("configure AGENT_PROVIDER before enabling the agent")
+    }
+    return agent.New(model, "Follow the application's explicit tool and authorization policy.")
+}
+```
+
+在应用代码中调用 `runner.Ask(ctx, prompt)`，通过 `agent.New` 显式传入工具；
+工具输入校验与副作用授权由应用负责。每次 Ask 使用新历史，接受 1–4096 字节
+非空白合法 UTF-8，最多四个并发请求且不排队，限时 60 秒、最多四轮模型调用，
+每个模型响应最多 1024 输出 token。提供方失败返回稳定错误，避免暴露内部细节；
+容量耗尽由应用边界处理。
+
+启动自己的 agent 应用前，选择一个提供方：
+
+```sh
+export AGENT_PROVIDER=anthropic
+export AGENT_MODEL='<model-name>'
+export ANTHROPIC_API_KEY='<private-key>'
+```
+
+OpenAI 使用 `AGENT_PROVIDER=openai`、`AGENT_MODEL` 和 `OPENAI_API_KEY`；
+`AGENT_API=responses` 为默认值，Chat Completions 使用 `AGENT_API=chat`。
+Anthropic 不接受 `AGENT_API`。`ANTHROPIC_BASE_URL` 或 `OPENAI_BASE_URL`
+可选择可信的运维端点，密钥会发送到该地址，不应接受请求输入指定端点。
+拒绝 URL 内嵌凭据、查询和片段，禁止跟随重定向。不隐式选择模型；
+未配置 `AGENT_PROVIDER` 时 `ModelFromEnv` 返回 nil。测试使用本地 fixture，不使用这些密钥。
+[[end]]
+## 检查
+
+```sh
+make check
+make lint
+make vulncheck
+make api-check
+make smoke
+```
+
+`make check` 验证格式、现代化、依赖整洁、vet、构建及打乱顺序的 race 测试。
+`make smoke` 检查 gRPC 认证健康探针及可选的本地模型 fixture，随后在临时 loopback
+端口运行已有入口，检查 HTTP 就绪、未配置业务路由返回 404 和信号退出。
+多服务尚无服务时只运行共享传输集成测试，无需 Docker、外部数据库或真实模型凭据。
+
+参见 [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md)、
+[CHANGELOG.md](CHANGELOG.md) 和 [LICENSE](LICENSE)。

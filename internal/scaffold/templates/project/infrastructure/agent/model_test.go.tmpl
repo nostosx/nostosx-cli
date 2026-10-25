@@ -1,0 +1,40 @@
+package agent
+
+import "testing"
+
+func TestModelConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		name, provider, model, api, base string
+		wantModel, wantError             bool
+	}{
+		{name: "disabled"},
+		{name: "missing provider", model: "explicit", wantError: true},
+		{name: "missing model", provider: "anthropic", wantError: true},
+		{name: "unknown provider", provider: "unknown", model: "explicit", wantError: true},
+		{name: "unknown API", provider: "openai", model: "explicit", api: "unknown", wantError: true},
+		{name: "anthropic API override", provider: "anthropic", model: "explicit", api: "chat", wantError: true},
+		{name: "credential URL", provider: "openai", model: "explicit", base: "https://user:pass@example.test", wantError: true},
+		{name: "openai responses", provider: "openai", model: "explicit", wantModel: true},
+		{name: "empty host", provider: "openai", model: "explicit", base: "http://:8080", wantError: true},
+		{name: "empty query", provider: "openai", model: "explicit", base: "https://example.test/v1?", wantError: true},
+		{name: "empty fragment", provider: "openai", model: "explicit", base: "https://example.test/v1#", wantError: true},
+		{name: "anthropic empty query", provider: "anthropic", model: "explicit", base: "https://example.test?", wantError: true},
+		{name: "anthropic empty fragment", provider: "anthropic", model: "explicit", base: "https://example.test#", wantError: true},
+		{name: "openai chat", provider: "openai", model: "explicit", api: "chat", wantModel: true},
+		{name: "anthropic", provider: "anthropic", model: "explicit", wantModel: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AGENT_PROVIDER", tc.provider)
+			t.Setenv("AGENT_MODEL", tc.model)
+			t.Setenv("AGENT_API", tc.api)
+			t.Setenv("OPENAI_BASE_URL", tc.base)
+			t.Setenv("ANTHROPIC_BASE_URL", tc.base)
+			t.Setenv("OPENAI_API_KEY", "fixture-key")
+			t.Setenv("ANTHROPIC_API_KEY", "fixture-key")
+			m, err := ModelFromEnv()
+			if (err != nil) != tc.wantError || (m != nil) != tc.wantModel {
+				t.Fatalf("model=%T err=%v", m, err)
+			}
+		})
+	}
+}

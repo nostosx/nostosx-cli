@@ -1,0 +1,76 @@
+//go:build integration
+
+package agent
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+
+	"github.com/nostosx/agentx/model"
+)
+
+func TestProviderRedirectCannotForwardCredentials(t *testing.T) {
+	for _, tc := range []struct{ provider, api string }{{"anthropic", ""}, {"openai", "responses"}, {"openai", "chat"}} {
+		t.Run(tc.provider+"/"+tc.api, func(t *testing.T) {
+			var targetCalls atomic.Int32
+			target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { targetCalls.Add(1) }))
+			defer target.Close()
+			source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
+			}))
+			defer source.Close()
+			t.Setenv("AGENT_PROVIDER", tc.provider)
+			t.Setenv("AGENT_MODEL", "fixture-model")
+			t.Setenv("AGENT_API", tc.api)
+			t.Setenv("ANTHROPIC_API_KEY", "fixture-key")
+			t.Setenv("OPENAI_API_KEY", "fixture-key")
+			t.Setenv("ANTHROPIC_BASE_URL", source.URL)
+			t.Setenv("OPENAI_BASE_URL", source.URL)
+			m, err := ModelFromEnv()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := m.Generate(t.Context(), &model.Request{Messages: []*model.Message{model.UserText("hello")}}); err == nil {
+				t.Fatal("redirect accepted")
+			}
+			if targetCalls.Load() != 0 {
+				t.Fatal("credentials followed redirect")
+			}
+		})
+	}
+}
+
+func TestProviderRunner(t *testing.T) {
+	var calls atomic.Int32
+	fixture := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/messages" || r.Header.Get("X-Api-Key") != "fixture-key" {
+			t.Errorf("unexpected provider request: %s", r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": "fixture", "type": "message", "role": "assistant", "model": "fixture-model", "content": []map[string]string{{"type": "text", "text": "fixture-ok"}}, "stop_reason": "end_turn", "usage": map[string]int{"input_tokens": 1, "output_tokens": 1}})
+	}))
+	defer fixture.Close()
+	t.Setenv("AGENT_PROVIDER", "anthropic")
+	t.Setenv("AGENT_MODEL", "fixture-model")
+	t.Setenv("AGENT_API", "")
+	t.Setenv("ANTHROPIC_API_KEY", "fixture-key")
+	t.Setenv("ANTHROPIC_BASE_URL", fixture.URL)
+	m, err := ModelFromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := New(m, "Reply briefly.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	answer, err := runner.Ask(t.Context(), "hello")
+	if err != nil || answer != "fixture-ok" || calls.Load() != 1 {
+		t.Fatalf("answer=%q calls=%d err=%v", answer, calls.Load(), err)
+	}
+}

@@ -1,0 +1,15 @@
+package rpc
+
+import (
+ "context"
+
+ "google.golang.org/grpc/codes"
+ "google.golang.org/grpc/status"
+
+ pb "[[.Module]]/api/gen/go/[[.Service]]/v1"
+)
+
+// [[.API.RPC]] is the transport entry point. Implement authorization and the application call here.
+func (*Handler) [[.API.RPC]](context.Context, *pb.[[.API.RPC]]Request) (*pb.[[.API.RPC]]Response, error) {
+ return nil, status.Error(codes.Unimplemented, "NOT_IMPLEMENTED")
+}

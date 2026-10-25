@@ -1,0 +1,111 @@
+//go:build integration
+
+package bootstrap
+
+import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"testing"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+)
+
+func TestListenersAndGracefulShutdown(t *testing.T) {
+	cfg := config()
+	application, servers, err := New(t.Context(), cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, stop := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() { done <- application.Run(ctx) }()
+	t.Cleanup(func() {
+		stop()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("shutdown: %v", err)
+			}
+		case <-time.After(15 * time.Second):
+			t.Error("shutdown timed out")
+		}
+	})
+	deadline := time.Now().Add(10 * time.Second)
+	for servers.HTTP.URL() == nil || servers.GRPC.URL() == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("listeners did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	client := &http.Client{Timeout: 2 * time.Second}
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, servers.HTTP.URL().String()+"/readyz", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, readErr := io.Copy(io.Discard, response.Body)
+	closeErr := response.Body.Close()
+	if err := errors.Join(readErr, closeErr); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("readiness=%d", response.StatusCode)
+	}
+	conn, err := grpc.NewClient(servers.GRPC.URL().Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	rpcctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	health := grpc_health_v1.NewHealthClient(conn)
+	if _, err := health.Check(rpcctx, &grpc_health_v1.HealthCheckRequest{}); status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("unauthenticated probe: %v", err)
+	}
+	watch, err := health.Watch(rpcctx, &grpc_health_v1.HealthCheckRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := watch.Recv(); status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("unauthenticated watch: %v", err)
+	}
+	rpcctx = metadata.AppendToOutgoingContext(rpcctx, "authorization", "Bearer "+cfg.Token)
+	result, err := health.Check(rpcctx, &grpc_health_v1.HealthCheckRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	watch, err = health.Watch(rpcctx, &grpc_health_v1.HealthCheckRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	update, err := watch.Recv()
+	if err != nil || update.Status != grpc_health_v1.HealthCheckResponse_SERVING {
+		t.Fatalf("authenticated watch: %v %v", update, err)
+	}
+	if result.Status != grpc_health_v1.HealthCheckResponse_SERVING {
+		t.Fatal(result)
+	}
+	request, err = http.NewRequestWithContext(t.Context(), http.MethodGet, servers.HTTP.URL().String()+"/v1/unconfigured", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err = client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusNotFound {
+		t.Fatalf("unexpected business endpoint: %d", response.StatusCode)
+	}
+}

@@ -1,0 +1,17 @@
+package rpc
+
+import (
+ "testing"
+
+ "google.golang.org/grpc/codes"
+ "google.golang.org/grpc/status"
+
+ pb "[[.Module]]/api/gen/go/[[.Service]]/v1"
+)
+
+func Test[[.API.RPC]]Unimplemented(t *testing.T) {
+ response, err := (&Handler{}).[[.API.RPC]](t.Context(), &pb.[[.API.RPC]]Request{})
+ if response != nil || status.Code(err) != codes.Unimplemented {
+  t.Fatalf("response=%v error=%v", response, err)
+ }
+}

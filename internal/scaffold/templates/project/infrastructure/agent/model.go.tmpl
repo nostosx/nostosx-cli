@@ -1,0 +1,54 @@
+package agent
+
+import (
+	"errors"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/nostosx/agentx-contrib/provider/anthropic"
+	"github.com/nostosx/agentx-contrib/provider/openai"
+	"github.com/nostosx/agentx/model"
+)
+
+// ModelFromEnv reads trusted operator configuration during startup.
+// It returns nil when AGENT_PROVIDER is absent; request data must not select endpoints.
+func ModelFromEnv() (model.Model, error) {
+	provider, name, api := os.Getenv("AGENT_PROVIDER"), os.Getenv("AGENT_MODEL"), os.Getenv("AGENT_API")
+	if provider == "" {
+		if name != "" || api != "" {
+			return nil, errors.New("AGENT_PROVIDER is required when configuring an agent")
+		}
+		return nil, nil
+	}
+	if provider != "openai" && provider != "anthropic" {
+		return nil, errors.New("AGENT_PROVIDER must be openai or anthropic")
+	}
+	if name == "" {
+		return nil, errors.New("AGENT_MODEL is required; no model is selected implicitly")
+	}
+	if (provider == "anthropic" && api != "") || (provider == "openai" && api != "" && api != "responses" && api != "chat") {
+		return nil, errors.New("AGENT_API supports responses or chat for openai only")
+	}
+	baseKey := "OPENAI_BASE_URL"
+	if provider == "anthropic" {
+		baseKey = "ANTHROPIC_BASE_URL"
+	}
+	if base := os.Getenv(baseKey); base != "" {
+		u, err := url.Parse(base)
+		if err != nil || u == nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.ForceQuery || u.RawQuery != "" || strings.Contains(base, "#") {
+			return nil, errors.New("model base URL must be a trusted HTTP(S) URL without credentials, query or fragment")
+		}
+	}
+	client := &http.Client{Timeout: 55 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	if provider == "anthropic" {
+		return anthropic.New(anthropic.WithModel(name), anthropic.WithMaxTokens(1024), anthropic.WithHTTPClient(client))
+	}
+	opts := []openai.Option{openai.WithModel(name), openai.WithMaxTokens(1024), openai.WithHTTPClient(client)}
+	if api == "chat" {
+		opts = append(opts, openai.WithChatCompletions())
+	}
+	return openai.New(opts...)
+}

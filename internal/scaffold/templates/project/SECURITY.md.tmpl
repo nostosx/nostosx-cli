@@ -1,0 +1,37 @@
+# Security
+
+This is an application skeleton. Configure a private reporting channel and a
+support policy before publication; never post credentials in public issues.
+
+## Local transport defaults
+
+HTTP and gRPC require literal loopback listen IPs and use plaintext. HTTP exposes
+only unauthenticated health checks until application assembly registers routes.
+gRPC requires a bearer token with at least 32 printable non-whitespace ASCII
+characters. Never pass tokens in URLs or log them. Unary handlers have bounded
+messages, deadlines and panic recovery; application failures need explicit safe
+mapping with infrastructure/rpc.Error. New streaming RPCs need their own lifetime
+and message policies. Before external deployment add TLS, caller identity,
+per-operation authorization, request limits and an explicit listener policy.
+
+Adding HTTP mapping does not install authorization automatically. Review every
+new route and adapter. Protobuf schemas do not replace domain validation. There
+is no database, migration or business access-control policy by default.
+
+## Optional agents
+
+Only trusted startup configuration selects model endpoints; API keys are sent
+there. Redirects are disabled and URL credentials, queries and fragments rejected.
+No network endpoint, history store or business tool is exposed automatically.
+Use one shared runner for its per-instance capacity limit. Authorize and validate
+all tools independently of model instructions. Deadline and token limits bound
+cooperative execution; tools must honor context cancellation. Local model fixtures
+do not establish real-provider or production security acceptance.
+
+CLI contract build/check commands execute pinned Go plugins and Buf, consuming trusted application
+source and configuration. They are not a sandbox for untrusted tools or source.
+The application contains no generator source. Contract operations share a temporary
+.nostosx.lock with CLI additions; never remove an active owner's lock. Plugin
+failure preserves published output; normal publication failures attempt rollback.
+Process termination can leave a lock or staging directory. Review generated changes
+before building or deploying them.

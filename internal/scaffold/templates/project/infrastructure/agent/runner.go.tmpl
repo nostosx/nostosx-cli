@@ -1,0 +1,62 @@
+// Package agent provides optional model configuration and bounded agent execution.
+package agent
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	agentx "github.com/nostosx/agentx/agent"
+	"github.com/nostosx/agentx/model"
+	"github.com/nostosx/agentx/tool"
+)
+
+var (
+	ErrInvalidPrompt = errors.New("prompt must contain 1 to 4096 bytes of valid UTF-8 text")
+	ErrBusy          = errors.New("agent capacity exhausted")
+	ErrUnavailable   = errors.New("agent could not complete the request")
+)
+
+// Runner shares a concurrency limit; each Ask starts a fresh conversation.
+// Tools and their authorization are supplied explicitly by application assembly.
+type Runner struct {
+	agent *agentx.LLMAgent
+	slots chan struct{}
+}
+
+func New(m model.Model, instructions string, tools ...tool.Tool) (*Runner, error) {
+	if m == nil {
+		return nil, errors.New("agent requires a model")
+	}
+	a, err := agentx.New("[[.Name]]", agentx.WithModel(m), agentx.WithInstructions(instructions), agentx.WithMaxTurns(4), agentx.WithMaxTokens(1024), agentx.WithTools(tools...))
+	if err != nil {
+		return nil, err
+	}
+	return &Runner{agent: a, slots: make(chan struct{}, 4)}, nil
+}
+func (r *Runner) Ask(ctx context.Context, prompt string) (string, error) {
+	if !utf8.ValidString(prompt) || len(prompt) > 4096 || strings.TrimSpace(prompt) == "" {
+		return "", ErrInvalidPrompt
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	select {
+	case r.slots <- struct{}{}:
+		defer func() { <-r.slots }()
+	default:
+		return "", ErrBusy
+	}
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	answer, err := r.agent.Ask(ctx, prompt)
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	if err != nil {
+		return "", ErrUnavailable
+	}
+	return answer, nil
+}

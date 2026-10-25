@@ -1,0 +1,20 @@
+module [[.Module]]
+
+go 1.27.3
+
+require (
+[[if .Agent]]	github.com/nostosx/agentx v1.0.0
+	github.com/nostosx/agentx-contrib/provider v1.0.0
+[[end]]	github.com/nostosx/servex v1.1.0
+	github.com/nostosx/servex-contrib/transport/grpcx v1.0.0
+	google.golang.org/grpc v1.84.0
+)
+
+require (
+	github.com/nostosx/kitx v1.0.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
+)

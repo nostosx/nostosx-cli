@@ -1,0 +1,25 @@
+package main
+
+import (
+	"context"
+	"log/slog"
+	"os"
+
+	"github.com/nostosx/servex/app"
+
+	"[[.Module]]/infrastructure/bootstrap"
+	service "[[.Module]]/services/[[.Service]]"
+)
+
+func main() {
+	if err := run(); err != nil {
+		slog.Error("[[.Service]] stopped", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	ctx, stop := app.SignalContext(context.Background())
+	defer stop()
+	return bootstrap.RunCLI(ctx, "[[.Service]]", os.Args[1:], os.Stderr, service.Register)
+}

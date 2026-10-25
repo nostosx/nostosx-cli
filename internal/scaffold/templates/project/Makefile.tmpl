@@ -1,0 +1,102 @@
+GO ?= go
+NOSTOSX_VERSION ?= v1.0.0
+# Override NOSTOSX with a local binary path when testing an unreleased CLI.
+ifeq ($(strip $(NOSTOSX)),)
+NOSTOSX_CMD = "$(GO)" run github.com/nostosx/nostosx-cli/cmd/nostosx@$(NOSTOSX_VERSION)
+else
+NOSTOSX_CMD = "$(NOSTOSX)"
+endif
+export GO
+GOFMT ?= gofmt
+GOLANGCI_LINT ?= golangci-lint
+GOVULNCHECK ?= govulncheck
+export GOWORK := off
+.DEFAULT_GOAL := check
+
+MODULES := .
+
+# Each repository owns this file so a standalone checkout has no shared tooling dependency.
+define in_modules
+	@set -eu; for module in $(MODULES); do \
+		printf '\n==> %s: %s\n' "$$module" "$@"; \
+		(cd "$$module"; $(1)); \
+	done
+endef
+
+.PHONY: all help check fmt fmt-check fix modernize-check tidy tidy-check vet build test race cover lint vulncheck clean
+
+all: check
+
+help:
+	@printf '%s\n' \
+	  'make check       Format, modernize, tidy, vet, build and tests' \
+	  'make test        Unit and isolated integration tests with shuffled order' \
+	  'make race        Unit and isolated integration tests with the race detector' \
+	  'make lint        Lint normal and integration builds (golangci-lint v2.15.0)' \
+	  'make vulncheck   Scan both builds (govulncheck v1.9.0)' \
+	  'make api-check   Lint contracts and verify generated output' \
+	  'make smoke       Run this layout with loopback listeners' \
+	  'make fmt/fix/tidy Apply formatting, modernization or dependency changes' \
+	  'make cover       Race coverage in coverage.out per module'
+
+fmt:
+	$(call in_modules,"$(GOFMT)" -w .)
+
+fmt-check:
+	$(call in_modules,out=$$("$(GOFMT)" -l .); if [ -n "$$out" ]; then printf 'gofmt needed:\n%s\n' "$$out"; exit 1; fi)
+
+fix:
+	$(call in_modules,for tags in '' integration; do "$(GO)" fix -tags "$$tags" ./...; done)
+
+modernize-check:
+	$(call in_modules,for tags in '' integration; do out=$$("$(GO)" fix -tags "$$tags" -diff ./...); if [ -n "$$out" ]; then printf '%s\n' "$$out"; exit 1; fi; done)
+
+tidy:
+	$(call in_modules,"$(GO)" mod tidy)
+
+tidy-check:
+	$(call in_modules,out=$$("$(GO)" mod tidy -diff); if [ -n "$$out" ]; then printf '%s\n' "$$out"; exit 1; fi)
+
+vet:
+	$(call in_modules,for tags in '' integration; do "$(GO)" vet -tags "$$tags" ./...; done)
+
+build:
+	$(call in_modules,for tags in '' integration; do "$(GO)" build -tags "$$tags" ./...; done)
+
+test:
+	$(call in_modules,"$(GO)" test -tags integration -shuffle=on -count=1 ./...)
+
+race:
+	$(call in_modules,"$(GO)" test -tags integration -race -shuffle=on -count=1 ./...)
+
+cover:
+	$(call in_modules,"$(GO)" test -race -shuffle=on -count=1 -tags integration -coverprofile=coverage.out -covermode=atomic ./...; "$(GO)" tool cover -func=coverage.out)
+
+lint:
+	$(call in_modules,for tags in '' integration; do "$(GOLANGCI_LINT)" run --config="$(CURDIR)/.golangci.yml" --build-tags="$$tags" ./...; done)
+
+vulncheck:
+	$(call in_modules,for tags in '' integration; do "$(GOVULNCHECK)" -tags "$$tags" ./...; done)
+
+clean:
+	$(call in_modules,rm -f coverage.out coverage.txt)
+
+check: fmt-check modernize-check tidy-check vet build race
+
+.PHONY: smoke
+smoke:
+	NOSTOSX_PROCESS_SMOKE=1 "$(GO)" test -tags integration -race -shuffle=on -count=1 -v ./infrastructure/...
+
+.PHONY: generate api-lint api-check api-breaking
+generate:
+	$(NOSTOSX_CMD) api generate --dir .
+
+api-lint:
+	$(NOSTOSX_CMD) api lint --dir .
+
+api-check: api-lint
+	$(NOSTOSX_CMD) api check --dir .
+
+api-breaking:
+	@test -n "$(API_BASE)" || (echo 'Set API_BASE to an explicit Git revision'; exit 1)
+	$(NOSTOSX_CMD) api breaking --dir . --against ".git#ref=$(API_BASE)"

@@ -1,0 +1,30 @@
+# Working on [[.Name]]
+
+Read README.md, CONTRIBUTING.md and native CI before editing. Use Go 1.27.3,
+GOWORK=off and published dependencies without sibling replacements.
+
+- This is an application-owned engineering skeleton, not the Starter examples.
+- Add real contexts and services on demand. Keep one module for both topologies.
+- Use nostosx add api for explicit v1 RPC/message/binding/adapter scaffolds, then
+  make generate and go mod tidy. Implement the unimplemented method and its tests;
+  authorization, CQRS use cases and HTTP mounting remain application-owned.
+- Omit both HTTP flags for gRPC-only APIs. For existing Proto contracts, use
+  nostosx api scaffold to fill missing unary methods offline and preserve matching
+  implementations. Add behavior tests when implementing those methods.
+- nostosx doctor only reads project files and trusted tool versions; it neither
+  installs tools nor replaces code and contract checks.
+- Keep application/domain independent of protobuf and gRPC; map at port/rpc.
+- Commands may write; queries only read. Define narrow ports beside real use cases
+  and stable CQRS operation metadata; compose middleware in module.go when needed.
+- Bootstrap owns transport lifecycle; service-private adapters stay internal.
+- Keep loopback defaults and authenticated gRPC. New HTTP routes need explicit
+  authentication, authorization, input bounds and safe error mapping.
+- Agent tools and authorization are explicitly supplied. Model endpoints are
+  trusted startup configuration, never user input. Preserve runner limits.
+- Proto sources and HTTP options are authoritative; regenerate explicitly with
+  the pinned CLI and Buf, tidy dependencies, then check drift. Do not edit generated
+  files or copy generator source into the application. Normal builds need no CLI.
+- Preserve .nostosx.lock ownership and failed-plugin isolation. Do not add project
+  metadata files, fake business examples, empty placeholders or archtest packages.
+- Run make check, lint, vulncheck, api-check and smoke for relevant changes.
+- Never commit, push, tag or deploy without explicit user authorization.

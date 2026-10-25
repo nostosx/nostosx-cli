@@ -1,0 +1,47 @@
+# Contributing
+
+This application owns its generated source. Use Go 1.27.3, Make and GOWORK=off.
+Do not add sibling replacements or depend on the CLI checkout at build time.
+
+`nostosx add api` can extend an existing generated v1 service. Review its Proto
+import/RPC edit, messages, external HTTP binding and adapter/test files. Define
+payload types, implement the unimplemented RPC and replace the stub test before
+exposing it. Regenerate with `make generate`, run `go mod tidy` and check drift.
+HTTP mounting, per-operation authorization and CQRS use cases are explicit changes.
+
+```sh
+go mod download
+make check
+make lint
+make vulncheck
+make api-check
+make smoke
+```
+
+Install golangci-lint v2.15.0 and govulncheck v1.9.0 outside this module. All
+tests and process checks are Go tests. Contract builds use the pinned Go CLI;
+once Proto sources exist, install Buf 1.72.0 on PATH.
+Generation downloads pinned Go plugins; no system protoc is required.
+See README.md for exact generator versions and commands. After changing contracts,
+run make generate, go mod tidy and make api-check. Breaking checks need an explicit
+versioned Git baseline. Never hand-edit generated Go or OpenAPI output.
+
+Keep domain and application transport-free. Define consumer-owned ports beside
+real use cases and compose their implementations in services/<name>/module.go.
+Use servex/cqrs when introducing typed commands and queries; middleware belongs
+in assembly. Keep service-private adapters under services/<name>/internal.
+Do not add speculative infrastructure, fake status use cases or architecture-test
+packages to make empty directories look complete.
+
+Test application behavior, cancellation and authorization beside the code.
+Use integration-tagged tests for listeners, model fixtures and external adapters.
+Every process must release resources on cancellation and failed startup. Keep
+fixtures isolated; never use operator model credentials or shared data stores.
+API authentication, per-operation authorization, persistence and migrations are
+application decisions and must be reviewed with their own regression tests.
+
+GO, GOFMT, NOSTOSX, GOLANGCI_LINT and GOVULNCHECK select executables. Use an
+absolute NOSTOSX binary path for source builds; NOSTOSX_VERSION selects a release
+for the default go run invocation. No generator source is copied into this project.
+Template
+upgrades do not automatically update this application; review source changes.

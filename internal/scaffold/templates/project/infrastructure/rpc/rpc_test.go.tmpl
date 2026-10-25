@@ -1,0 +1,47 @@
+package rpc_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+
+	"[[.Module]]/infrastructure/rpc"
+)
+
+func TestAuthenticationDeadlineAndRecovery(t *testing.T) {
+	t.Parallel()
+	interceptor := rpc.Authenticate("token")
+	for _, method := range []string{"/example.v1.ExampleService/Execute", "/example.v1.ExampleService/Read"} {
+		ctx := metadata.NewIncomingContext(t.Context(), metadata.Pairs("authorization", "Bearer token"))
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
+		_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{FullMethod: method}, func(ctx context.Context, _ any) (any, error) {
+			deadline, ok := ctx.Deadline()
+			if !ok || time.Until(deadline) > time.Second {
+				t.Error("caller deadline was extended")
+			}
+			panic("private credentials")
+		})
+		cancel()
+		if status.Code(err) != codes.Internal || status.Convert(err).Message() != "INTERNAL" {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestSafeErrors(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := rpc.Error(ctx, errors.New("private database path")); status.Code(err) != codes.Canceled {
+		t.Fatal(err)
+	}
+	if err := rpc.Error(t.Context(), errors.New("private database path")); status.Convert(err).Message() != "INTERNAL" {
+		t.Fatal(err)
+	}
+}
