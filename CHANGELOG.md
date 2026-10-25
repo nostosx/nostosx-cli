@@ -1,40 +1,30 @@
 # Changelog
 
-## Unreleased
+## v1.0.0 - 2026-10-26
 
-- Support gRPC-only `add api` operations with paired optional HTTP flags.
-- Add offline `api scaffold` to fill missing unary RPC adapters from existing
-  Proto contracts while preserving compatible implementations.
-- Add read-only `doctor` diagnostics with text/JSON output for project layout,
-  Go and Buf versions; skip Buf for an empty skeleton.
+Initial release of the `nostosx` CLI and its embedded Go application templates.
 
-- Generate clean single-module monolith and service-monorepo skeletons; keep
-  product, inventory, persistence and assistant business examples in the separate
-  nostosx-starter reference application.
-- Add domain/application boundaries on demand with `add context`, and empty
-  versioned Proto services, adapters and entry points with `add service`.
-  These two commands leave existing assembly and contracts unchanged.
-- Add `add api` for explicit v1 RPCs, request/response messages, HTTP bindings and
-  unimplemented adapters with tests. Preserve existing source while inserting
-  imports/RPCs into the target service Proto; reject symbol and route conflicts.
-- Keep optional agentx model configuration and bounded execution independent of
-  business tools and network endpoints.
-- Add `api generate/lint/check/breaking` to own contract builds in the Go CLI.
-  Generated Makefiles call a pinned CLI version, with a local binary override.
-- Separate project, addition and contract command constructors; reject blank
-  breaking-check baselines as usage errors before accessing the project.
-- Provide explicit Buf, Go/gRPC/gateway and OpenAPI 2 generation; accept an empty
-  initial contract tree without external generation tools or placeholder APIs.
-- Remove default database dependencies, migrations and the archtest package.
-- Preserve offline, deterministic generation, module-path validation, root-confined
-  writes, cancellation, exclusive additions and rollback of owned outputs.
-- Verify four generated combinations before and after extension, including race
-  tests, authenticated transport health, local model fixtures and signal shutdown.
-- Use Go tests for contract failure isolation, process smoke tests and generated
-  template quality checks. Remove Python and application-local generator source.
-- Document clean-project setup, explicit service/agent assembly and security
-  boundaries in English and Simplified Chinese.
-- Resolve the installed CLI version from Go module build metadata when no
-  release version was injected by the binary build.
-
-No release has been published.
+- Generate clean single-module monolith and service-monorepo skeletons, with
+  optional agentx model configuration and bounded execution. Business contexts,
+  database integration and application tools are added explicitly.
+- Add domain/application packages with `add context`, and versioned Proto
+  services, adapters and standalone process entry points with `add service`.
+- Add unary RPCs with `add api`, optionally with HTTP bindings. Preserve existing
+  Proto source and reject conflicting symbols, outputs and supported HTTP routes.
+- Fill missing unary adapters from local Proto contracts with `api scaffold`,
+  preserving compatible implementations and rejecting unsupported signatures.
+- Build Go/gRPC/gateway and OpenAPI 2 output through `api generate`; validate
+  contracts, generated output and compatibility with `api lint/check/breaking`.
+  Contract tools use pinned versions and accept an empty initial contract tree.
+- Diagnose Go, Buf and project configuration with read-only `doctor` text/JSON
+  reports. Source scaffolding works offline without executing external tools.
+- Confine writes to the project root, reject symlinks and output overwrites,
+  coordinate additions and contract builds, and roll back owned outputs on normal
+  failures. Process crashes are not covered by the rollback guarantee.
+- Provide loopback HTTP/gRPC health, gRPC token authentication, safe transport
+  errors, explicit service assembly and graceful shutdown in generated projects.
+- Include bilingual documentation, Go tests, Make quality gates and CI. Validate
+  initial and extended forms of all four layout/agent combinations, including
+  race tests, real process shutdown and local model fixtures.
+- Support shell completion and installed-version discovery from Go module build
+  metadata; release binaries carry an explicit version.

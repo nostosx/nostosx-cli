@@ -16,9 +16,24 @@ agentx integration. Both layouts use one Go module.
 This repository owns the executable and embedded templates. Generation does not
 fetch the Starter. Generated applications own their source. Ordinary builds and
 runtime need neither repository; contract development uses the CLI without copying
-its tool source. Neither project has a published release.
+its tool source.
 
-## Build
+## Install
+
+With Go **1.27.3** or later:
+
+```sh
+go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.0.0
+nostosx --version
+export NOSTOSX="$(command -v nostosx)"
+```
+
+Ensure Go's binary installation directory is on PATH. Alternatively, download the
+archive for your OS and architecture from [v1.0.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.0.0),
+verify it against `checksums.txt`, and place the executable on PATH.
+Project builds and contract plugins still require Go; contracts also require Buf.
+
+## Build from source
 
 Use Go **1.27.3**, then run from this checkout in a POSIX shell:
 
@@ -108,8 +123,8 @@ Buf lint; `api breaking` requires an explicit Buf baseline. All four commands
 share the additions lock. Plugins must succeed before output is replaced.
 
 Generated Makefiles call CLI v1.0.0 through `go run`, without adding it to the
-application module. That release is not public yet: use the source-built binary
-with `make generate api-check NOSTOSX="$NOSTOSX"` until publication.
+application module. To use a source-built binary, run
+`make generate api-check NOSTOSX="$NOSTOSX"`.
 `NOSTOSX_VERSION` selects another reviewed release. For a local binary, set
 `NOSTOSX` to its absolute path. Build and test targets do not invoke the CLI.
 Go, Buf, project configuration and plugin sources must be trusted; contract

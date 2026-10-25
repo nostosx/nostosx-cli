@@ -27,7 +27,7 @@ make templates-vulncheck
 
 `GO`, `GOFMT`, `GOLANGCI_LINT` and `GOVULNCHECK` select executables. Generated
 Makefiles pin CLI v1.0.0; tests override `NOSTOSX` with the binary built from
-this checkout. Do the same before that release is public.
+this checkout. Use that override when developing the CLI or its templates.
 Generated projects resolve pinned public modules. Tests use temporary files,
 loopback listeners and local model fixtures, without Docker or paid model APIs.
 

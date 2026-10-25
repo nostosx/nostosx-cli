@@ -1,6 +1,6 @@
 # Releasing nostosx-cli
 
-No CLI release exists yet. A release identifies the CLI, its embedded templates
+A release identifies the CLI, its embedded templates
 and their pinned dependencies together. nostosx-starter source snapshots are
 versioned separately and are not bundled or downloaded during generation.
 Generated applications own their source; they are not upgraded by replacing the
@@ -20,7 +20,7 @@ Before publication:
    assembly, signal shutdown and the optional agent runner's local provider fixture. Do not infer live-provider
    acceptance from fixture results.
 4. Review licenses, dependency checksums, template output, version metadata and
-   changelog. The first planned version is `v1.0.0`. Build with an explicit
+   changelog. The initial version is `v1.0.0`. Build with an explicit
    version: `go build -trimpath -ldflags "-s -w -X main.version=v1.0.0" -o bin/nostosx ./cmd/nostosx`.
    Verify `nostosx --version`. A tagged `go install` uses Go's module build
    metadata. Source builds can report a Go-derived module version, including a
@@ -52,11 +52,10 @@ GOWORK=off GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org \
 nostosx --version
 ```
 
-Do not describe this installation as available before the tag is public. The
-CLI uses Go for installation and contract plugins; Buf is required when contracts
+The CLI uses Go for installation and contract plugins; Buf is required when contracts
 exist. No Python or application-local generator source is needed. Generated
 Makefiles default to CLI v1.0.0; check that this pin matches the approved release.
-Before publication, use a source-built binary through the NOSTOSX override.
+For source development, use a source-built binary through the NOSTOSX override.
 
 The generated core uses published servex v1.1.0. grpcx and optional agentx/provider
 use v1.0.0. Update pinned versions and checksums before independently checking

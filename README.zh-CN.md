@@ -14,9 +14,23 @@
 
 本仓库维护命令和内嵌模板，生成时不会下载 Starter。生成的应用自行维护源码，
 普通构建和运行不依赖这两个仓库；契约开发调用 CLI，不复制工具源码。
-目前两个项目都尚未发布。
 
-## 构建
+## 安装
+
+使用 Go **1.27.3** 或更新版本：
+
+```sh
+go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.0.0
+nostosx --version
+export NOSTOSX="$(command -v nostosx)"
+```
+
+请将 Go 的二进制安装目录加入 PATH。也可以从
+[v1.0.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.0.0)
+下载对应系统和架构的压缩包，使用 `checksums.txt` 校验后，将可执行文件放入 PATH。
+工程构建和契约插件仍需要 Go；存在契约时还需要 Buf。
+
+## 从源码构建
 
 使用 Go **1.27.3**，在本仓库根目录通过 POSIX shell 执行：
 
@@ -99,8 +113,7 @@ go run ./services/order/cmd/order -addr 127.0.0.1:8081 -grpc-addr 127.0.0.1:9091
 所有插件成功后才替换产物。
 
 生成项目的 Makefile 默认通过 `go run` 调用 CLI v1.0.0，不将其加入应用模块。
-该版本尚未公开发布，当前应使用源码构建的二进制：
-`make generate api-check NOSTOSX="$NOSTOSX"`。
+使用源码构建的二进制时，执行 `make generate api-check NOSTOSX="$NOSTOSX"`。
 `NOSTOSX_VERSION` 可选择其他经审查的版本；`NOSTOSX` 用于指定本地二进制的绝对路径。
 普通构建和测试不调用 CLI。契约命令会执行 Go 插件，可能访问网络及模块缓存；
 Go、Buf、工程配置和插件源码必须可信，这些命令不提供沙箱隔离。

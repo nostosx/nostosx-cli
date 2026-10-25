@@ -168,7 +168,7 @@ Doctor 不替代 `make check` 与 `make api-check`。
 ## 契约
 
 Makefile 默认通过 `go run` 调用 CLI v1.0.0，不将工具加入应用依赖图。
-该版本公开发布前，或需要验证源码构建时，应指定二进制的绝对路径：
+需要验证源码构建时，可指定二进制的绝对路径：
 
 ```sh
 export NOSTOSX=/absolute/path/to/nostosx

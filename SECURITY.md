@@ -1,9 +1,9 @@
 # Security
 
-This project is under development and has no published supported release.
-Before publication, configure a private vulnerability-reporting channel. Avoid
-posting credentials or exploitable details in public issues; report privately to
-a repository maintainer using an established private channel.
+The latest v1.x release receives security fixes. Report vulnerabilities privately
+through [GitHub security advisories](https://github.com/nostosx/nostosx-cli/security/advisories/new).
+Do not post credentials or exploitable details in public issues. Review the CLI,
+generated source and application deployment boundaries separately.
 
 ## Generation boundary
 
