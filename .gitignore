@@ -1,0 +1,9 @@
+/.data/
+/bin/
+/coverage.out
+/coverage.txt
+/.env
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
