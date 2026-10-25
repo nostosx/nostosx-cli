@@ -3,6 +3,7 @@
 package scaffold_test
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -101,10 +102,12 @@ func TestGeneratedProjects(t *testing.T) {
 						cmd := exec.CommandContext(ctx, goTool, args...)
 						cmd.Dir = o.Output
 						cmd.Env = append(os.Environ(), "GOWORK=off")
-						output, err := cmd.CombinedOutput()
+						var stderr bytes.Buffer
+						cmd.Stderr = &stderr
+						output, err := cmd.Output()
 						mustBeEmpty := args[0] == "fix" || (args[0] == "mod" && args[1] == "tidy")
 						if err != nil || (mustBeEmpty && len(output) != 0) {
-							t.Fatalf("go %v: %v\n%s", args, err, output)
+							t.Fatalf("go %v: %v\n%s%s", args, err, output, stderr.String())
 						}
 					})
 				}
@@ -116,6 +119,20 @@ func TestGeneratedProjects(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestInitialProjectWithColdModuleCache(t *testing.T) {
+	t.Setenv("GOMODCACHE", t.TempDir())
+	t.Setenv("GOFLAGS", strings.TrimSpace(os.Getenv("GOFLAGS")+" -modcacherw"))
+	o := options(t)
+	if _, err := scaffold.New(t.Context(), o); err != nil {
+		t.Fatal(err)
+	}
+	goTool := os.Getenv("GO")
+	if goTool == "" {
+		goTool = "go"
+	}
+	checkInitialProject(t, o.Output, goTool)
 }
 
 func TestAddedNamesAvoidImportCollisions(t *testing.T) {
@@ -184,10 +201,12 @@ func checkInitialProject(t *testing.T, dir, goTool string) {
 		cmd := exec.CommandContext(ctx, goTool, args...)
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(), "GOWORK=off")
-		output, err := cmd.CombinedOutput()
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		output, err := cmd.Output()
 		cancel()
 		if err != nil || (args[0] == "mod" && len(output) != 0) {
-			t.Fatalf("initial go %v: %v\n%s", args, err, output)
+			t.Fatalf("initial go %v: %v\n%s%s", args, err, output, stderr.String())
 		}
 	}
 }
