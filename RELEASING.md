@@ -8,8 +8,8 @@ generator binary.
 
 Before publication:
 
-1. Verify published servex v1.1.0 and grpcx v1.0.0
-   dependencies and checksums through the public Go proxy, without sibling
+1. Verify published servex v1.2.0, grpcx v1.1.0, agentx v1.2.0 and provider
+   v1.1.0 dependencies and checksums through the public Go proxy, without sibling
    replacements or development proxies. Confirm repository ownership, the `github.com/nostosx/nostosx-cli` module
    path, the `nostosx` executable name and a private security-reporting channel.
 2. Run `make check`, `make lint`, `make vulncheck`, `make smoke`,
@@ -57,8 +57,8 @@ exist. No Python or application-local generator source is needed. Generated
 Makefiles default to CLI v1.0.0; check that this pin matches the approved release.
 For source development, use a source-built binary through the NOSTOSX override.
 
-The generated core uses published servex v1.1.0. grpcx and optional agentx/provider
-use v1.0.0. Update pinned versions and checksums before independently checking
+The generated core uses published servex v1.2.0 and grpcx v1.1.0; optional
+agentx and provider use v1.2.0 and v1.1.0. Update pinned versions and checksums before independently checking
 consumers. Do not move any existing published tags.
 
 Contract changes also require Buf 1.72.0: run `make api-lint`,

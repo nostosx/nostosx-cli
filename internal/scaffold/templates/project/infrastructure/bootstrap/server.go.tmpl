@@ -42,11 +42,11 @@ func New(ctx context.Context, cfg Config, register Register) (*app.App, *Servers
 	}
 	var application *app.App
 	check := health.CheckerFunc(func(ctx context.Context) error { return application.Check(ctx) })
-	server := httpx.NewServer(httpx.Address(cfg.Address), httpx.Health(check),
-		httpx.ReadHeaderTimeout(5*time.Second), httpx.ReadTimeout(10*time.Second),
-		httpx.WriteTimeout(10*time.Second), httpx.IdleTimeout(time.Minute), httpx.MaxHeaderBytes(16<<10))
-	grpcServer := grpcx.NewServer(grpcx.Address(cfg.GRPCAddress), grpcx.Health(check),
-		grpcx.GRPCOptions(grpc.ChainUnaryInterceptor(rpc.Authenticate(cfg.Token)), grpc.ChainStreamInterceptor(rpc.AuthenticateStream(cfg.Token)), grpc.MaxRecvMsgSize(rpc.MaxMessageBytes), grpc.MaxSendMsgSize(rpc.MaxMessageBytes)))
+	server := httpx.NewServer(httpx.WithAddress(cfg.Address), httpx.WithHealth(check),
+		httpx.WithReadHeaderTimeout(5*time.Second), httpx.WithReadTimeout(10*time.Second),
+		httpx.WithWriteTimeout(10*time.Second), httpx.WithIdleTimeout(time.Minute), httpx.WithMaxHeaderBytes(16<<10))
+	grpcServer := grpcx.NewServer(grpcx.WithAddress(cfg.GRPCAddress), grpcx.WithHealth(check),
+		grpcx.WithGRPCOptions(grpc.ChainUnaryInterceptor(rpc.Authenticate(cfg.Token)), grpc.ChainStreamInterceptor(rpc.AuthenticateStream(cfg.Token)), grpc.MaxRecvMsgSize(rpc.MaxMessageBytes), grpc.MaxSendMsgSize(rpc.MaxMessageBytes)))
 	if register != nil {
 		if err := register(ctx, server, grpcServer); err != nil {
 			return nil, nil, err

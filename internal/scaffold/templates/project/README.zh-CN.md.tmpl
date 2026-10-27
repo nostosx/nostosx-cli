@@ -64,7 +64,7 @@ application/order/query/doc.go
 不会生成用例、仓储或假数据。领域代码不依赖传输和持久化。
 实现业务时可在应用层使用 `github.com/nostosx/servex/cqrs` 定义真实的类型化
 Command、Query、Handler 及稳定的操作元信息。日志、指标和追踪在服务装配层选择；
-需要时可引入 `github.com/nostosx/servex-contrib/middleware@v1.1.0` 的类型化
+需要时可引入 `github.com/nostosx/servex-contrib/middleware@v1.2.0` 的类型化
 CQRS 中间件，初始工程不依赖它。
 
 `add service` 要求已有同名上下文，创建：
