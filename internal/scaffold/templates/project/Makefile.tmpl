@@ -1,5 +1,5 @@
 GO ?= go
-NOSTOSX_VERSION ?= v1.0.0
+NOSTOSX_VERSION ?= v1.1.0
 # Override NOSTOSX with a local binary path when testing an unreleased CLI.
 ifeq ($(strip $(NOSTOSX)),)
 NOSTOSX_CMD = "$(GO)" run github.com/nostosx/nostosx-cli/cmd/nostosx@$(NOSTOSX_VERSION)

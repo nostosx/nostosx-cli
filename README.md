@@ -23,13 +23,13 @@ its tool source.
 With Go **1.27.3** or later:
 
 ```sh
-go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.0.0
+go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.1.0
 nostosx --version
 export NOSTOSX="$(command -v nostosx)"
 ```
 
 Ensure Go's binary installation directory is on PATH. Alternatively, download the
-archive for your OS and architecture from [v1.0.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.0.0),
+archive for your OS and architecture from [v1.1.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.1.0),
 verify it against `checksums.txt`, and place the executable on PATH.
 Project builds and contract plugins still require Go; contracts also require Buf.
 
@@ -122,7 +122,7 @@ compares paths and content without changing published output. `api lint` runs
 Buf lint; `api breaking` requires an explicit Buf baseline. All four commands
 share the additions lock. Plugins must succeed before output is replaced.
 
-Generated Makefiles call CLI v1.0.0 through `go run`, without adding it to the
+Generated Makefiles call CLI v1.1.0 through `go run`, without adding it to the
 application module. To use a source-built binary, run
 `make generate api-check NOSTOSX="$NOSTOSX"`.
 `NOSTOSX_VERSION` selects another reviewed release. For a local binary, set

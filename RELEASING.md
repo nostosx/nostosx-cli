@@ -20,8 +20,8 @@ Before publication:
    assembly, signal shutdown and the optional agent runner's local provider fixture. Do not infer live-provider
    acceptance from fixture results.
 4. Review licenses, dependency checksums, template output, version metadata and
-   changelog. The initial version is `v1.0.0`. Build with an explicit
-   version: `go build -trimpath -ldflags "-s -w -X main.version=v1.0.0" -o bin/nostosx ./cmd/nostosx`.
+   changelog. Build with an explicit version, for example
+   `go build -trimpath -ldflags "-s -w -X main.version=v1.1.0" -o bin/nostosx ./cmd/nostosx`.
    Verify `nostosx --version`. A tagged `go install` uses Go's module build
    metadata. Source builds can report a Go-derived module version, including a
    pseudo-version; builds without version metadata report `dev`.
@@ -48,13 +48,13 @@ cache through the public proxy and sumdb:
 
 ```sh
 GOWORK=off GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org \
-  go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.0.0
+  go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.1.0
 nostosx --version
 ```
 
 The CLI uses Go for installation and contract plugins; Buf is required when contracts
 exist. No Python or application-local generator source is needed. Generated
-Makefiles default to CLI v1.0.0; check that this pin matches the approved release.
+Makefiles default to CLI v1.1.0; check that this pin matches the approved release.
 For source development, use a source-built binary through the NOSTOSX override.
 
 The generated core uses published servex v1.2.0 and grpcx v1.1.0; optional

@@ -20,13 +20,13 @@
 使用 Go **1.27.3** 或更新版本：
 
 ```sh
-go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.0.0
+go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.1.0
 nostosx --version
 export NOSTOSX="$(command -v nostosx)"
 ```
 
 请将 Go 的二进制安装目录加入 PATH。也可以从
-[v1.0.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.0.0)
+[v1.1.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.1.0)
 下载对应系统和架构的压缩包，使用 `checksums.txt` 校验后，将可执行文件放入 PATH。
 工程构建和契约插件仍需要 Go；存在契约时还需要 Buf。
 
@@ -112,7 +112,7 @@ go run ./services/order/cmd/order -addr 127.0.0.1:8081 -grpc-addr 127.0.0.1:9091
 `api breaking` 要求显式指定 Buf 基线。四个命令与新增操作共用锁，
 所有插件成功后才替换产物。
 
-生成项目的 Makefile 默认通过 `go run` 调用 CLI v1.0.0，不将其加入应用模块。
+生成项目的 Makefile 默认通过 `go run` 调用 CLI v1.1.0，不将其加入应用模块。
 使用源码构建的二进制时，执行 `make generate api-check NOSTOSX="$NOSTOSX"`。
 `NOSTOSX_VERSION` 可选择其他经审查的版本；`NOSTOSX` 用于指定本地二进制的绝对路径。
 普通构建和测试不调用 CLI。契约命令会执行 Go 插件，可能访问网络及模块缓存；
