@@ -5,30 +5,27 @@
 
 [English](README.md)
 
-## CLI 与 Starter
-
-| 项目 | 定位 |
-| --- | --- |
-| nostosx-cli | 生成工程骨架，再添加自己的业务上下文和服务。 |
-| nostosx-starter | 运行和改造包含商品、库存与 agent 集成的参考应用。 |
-
-本仓库维护命令和内嵌模板，生成时不会下载 Starter。生成的应用自行维护源码，
-普通构建和运行不依赖这两个仓库；契约开发调用 CLI，不复制工具源码。
+本仓库维护命令、内嵌模板和生成工程的验收。生成的应用自行维护源码，
+普通构建和运行不依赖 CLI；契约开发调用 CLI，不复制工具源码。
+库的可运行示例由 [agentx-examples](https://github.com/nostosx/agentx-examples)
+和 [servex-examples](https://github.com/nostosx/servex-examples) 维护。
 
 ## 安装
 
 使用 Go **1.27.3** 或更新版本：
 
 ```sh
-go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.1.0
+go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.2.0
 nostosx --version
 export NOSTOSX="$(command -v nostosx)"
 ```
 
 请将 Go 的二进制安装目录加入 PATH。也可以从
-[v1.1.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.1.0)
+[v1.2.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.2.0)
 下载对应系统和架构的压缩包，使用 `checksums.txt` 校验后，将可执行文件放入 PATH。
 工程构建和契约插件仍需要 Go；存在契约时还需要 Buf。
+
+CLI v1.2.0 包含本文的传输选择、原生 HTTP 骨架与 Task 工程结构。
 
 ## 从源码构建
 
@@ -54,12 +51,11 @@ Windows 使用 Git Bash，并将可执行文件名改为 `bin/nostosx.exe`。
 "$NOSTOSX" new workspace --module example.com/acme/workspace --output ../workspace
 cd ../workspace
 go mod download
-export API_TOKEN="$(openssl rand -hex 32)"
 go run ./cmd/server
 ```
 
 在另一终端用 `curl http://127.0.0.1:8080/readyz` 检查就绪状态，Ctrl+C 停止。
-默认宿主提供 HTTP 健康检查和需要认证的 gRPC 健康检查，不包含业务路由、数据库、
+默认宿主仅提供原生 HTTP 健康检查，不包含 gRPC、Proto、Buf、业务路由、数据库、
 迁移、示例上下文或架构测试包。配置和扩展步骤见生成项目的中英文 README。
 
 | 选项 | 行为 |
@@ -67,6 +63,9 @@ go run ./cmd/server
 | `--module` | 必填，应用自己的小写 Go 模块路径 |
 | `--layout monolith` | 默认，生成可启动的 `cmd/server` 宿主 |
 | `--layout microservices` | 生成仓库骨架，添加服务后再启动进程 |
+| `--transport http` | 默认，仅 HTTP，无 Proto、gRPC 或契约 CI |
+| `--transport grpc` | 仅 gRPC，启用契约工具和认证 |
+| `--transport http,grpc` | 显式启用两种传输；gateway 按 API 选择 |
 | `--with agentx` | 在 `infrastructure/agent` 添加模型配置、有界执行器及测试 |
 | `--output` | 尚不存在的目标路径，父目录必须已存在 |
 
@@ -81,22 +80,32 @@ go run ./cmd/server
 ```sh
 "$NOSTOSX" add context order --dir .
 "$NOSTOSX" add service order --dir .
-make generate NOSTOSX="$NOSTOSX"
-go mod tidy
-go run ./services/order/cmd/order -addr 127.0.0.1:8081 -grpc-addr 127.0.0.1:9091
+go run ./services/order/cmd/order -addr 127.0.0.1:8081
 ```
 
-`add context` 通过 `doc.go` 声明领域、应用及 command/query 包，不预设用例或持久化。
-`add service` 要求存在同名上下文，新增空的版本化 Proto 服务、RPC 适配器、
-注册函数和独立进程入口。HTTP 映射与操作配置最初只包含说明注释，
-实现服务时再定义真实 RPC 和对应的 HTTP 绑定。
+上下文只声明领域和应用包，不预设用例或持久化。服务从现有服务器构造代码继承传输配置，
+创建 app.go、私有适配器和独立入口；默认 HTTP 服务不创建 Proto，也不需要生成步骤。
+选择了 gRPC 的工程会生成版本化服务契约，须安装 Buf 1.72.0，执行 task api ACTION=generate 和 go mod tidy。
+新增操作读取当前 go.mod 和服务器构造代码，不维护重复元数据，不改动已有装配或依赖。
 
-添加服务后需显式生成契约并整理依赖。先安装 Buf 1.72.0，
-契约生成期间会下载固定版本的 Go 插件。初始工程没有契约，构建无需 Buf。
-单体注册和 agent 装配方式见生成项目 README。新增操作直接从 `go.mod` 读取模块路径；
-添加上下文和服务只创建新文件，不改动已有装配或依赖。
+## 添加原生 HTTP 接口
 
-## 构建契约
+```sh
+"$NOSTOSX" add api get-order --service order --method GET --path '/v1/orders/{order_id}'
+```
+
+默认 --transport http，仅新增 services/order/internal/port/http/get_order.go：请求/响应、
+Handler.GetOrder 和 RegisterGetOrder。路径参数初始为 string；按业务选择字段及类型。
+实现授权、参数转换和应用调用，并在 HTTP 包的 Register 中显式调用 RegisterGetOrder(server, handler)。
+不生成 Proto、OpenAPI、占位测试或业务用例，不执行契约生成，也不自动挂载路由。
+重复符号、已有输出及可识别的静态 HTTP 路由冲突在写入前拒绝；动态路由须手工维护。
+
+## 构建可选 Proto 契约
+
+先在新建工程时显式选择 --transport grpc 或 --transport http,grpc。
+现有应用的协议变更需自行审查装配与依赖，CLI 不自动改写工程。
+
+
 
 源码脚手架与契约构建分开执行：
 
@@ -112,33 +121,32 @@ go run ./services/order/cmd/order -addr 127.0.0.1:8081 -grpc-addr 127.0.0.1:9091
 `api breaking` 要求显式指定 Buf 基线。四个命令与新增操作共用锁，
 所有插件成功后才替换产物。
 
-生成项目的 Makefile 默认通过 `go run` 调用 CLI v1.1.0，不将其加入应用模块。
-使用源码构建的二进制时，执行 `make generate api-check NOSTOSX="$NOSTOSX"`。
+生成项目的 Taskfile.yml 默认通过 `go run` 调用 CLI v1.2.0，不将其加入应用模块。
+使用源码构建的二进制时，先执行 `task api ACTION=generate NOSTOSX="$NOSTOSX"`，再执行 `task api NOSTOSX="$NOSTOSX"`。
 `NOSTOSX_VERSION` 可选择其他经审查的版本；`NOSTOSX` 用于指定本地二进制的绝对路径。
 普通构建和测试不调用 CLI。契约命令会执行 Go 插件，可能访问网络及模块缓存；
 Go、Buf、工程配置和插件源码必须可信，这些命令不提供沙箱隔离。
 
-## 添加 API
+## 添加 Proto API
 
 已有上下文和服务后，显式添加操作：
 
 ```sh
-"$NOSTOSX" add api create-order --service order --method POST --path /v1/orders --dir .
-"$NOSTOSX" add api get-order --service order --method GET --path '/v1/orders/{order_id}' --dir .
-make generate NOSTOSX="$NOSTOSX"
+"$NOSTOSX" add api create-order --transport gateway --service order --method POST --path /v1/orders --dir .
+"$NOSTOSX" add api get-order --transport gateway --service order --method GET --path '/v1/orders/{order_id}' --dir .
+task api ACTION=generate NOSTOSX="$NOSTOSX"
 go get github.com/grpc-ecosystem/grpc-gateway/v2@v2.29.0
 go mod tidy
-make api-check NOSTOSX="$NOSTOSX"
+task api NOSTOSX="$NOSTOSX"
 ```
 
 `create-order` 对应 `OrderService.CreateOrder`。命令只在已有
-`api/proto/order/v1/order.proto` 中插入 import 和 RPC 声明，另创建四个文件：
+`api/proto/order/v1/order.proto` 中插入 import 和 RPC 声明，另创建三个文件：
 
 ```text
 api/proto/order/v1/create_order.proto                 请求与响应消息
 api/http/routes/order_create_order.yaml                HTTP 映射
 services/order/internal/port/rpc/create_order.go        尚未实现的 Handler 方法
-services/order/internal/port/rpc/create_order_test.go   占位行为的回归测试
 ```
 
 显式 `go get` 将 gateway 运行库固定到生成插件版本，初始骨架不依赖它。
@@ -150,9 +158,9 @@ services/order/internal/port/rpc/create_order_test.go   占位行为的回归测
 路径支持字面量和简单 `{field_name}` 参数，不支持通配符、嵌套字段或查询字符串。
 API 名使用小写连字符 slug，目标必须是已存在的生成式 v1 服务。
 
-RPC 入口先返回 gRPC `Unimplemented`；实现时将生成的占位测试改为真实行为测试。
+RPC 入口先返回 gRPC `Unimplemented`；实现真实行为时编写对应测试，不生成占位测试。
 命令不推测 CQRS 用例、不修改服务注册，也不自动挂载 HTTP。
-对外开放前，在 `module.go` 中明确认证与授权，再显式挂载生成的 gateway 处理器。
+对外开放前，在 `app.go` 中明确认证与授权，再显式挂载生成的 gateway 处理器。
 OpenAPI 中存在契约并不表示 HTTP 路由已经运行。
 
 生成前会检查工程内的 Proto 符号、Handler 方法及字段、已有输出和 HTTP 路由重叠。
@@ -160,11 +168,11 @@ OpenAPI 中存在契约并不表示 HTTP 路由已经运行。
 已有内联 `google.api.http`、通配选择器、自定义方法或不支持的路径模式时会拒绝操作，
 应手工维护契约与映射，避免不完整的冲突判断。
 
-仅提供 gRPC 的操作，省略两个 HTTP 参数即可：
+仅提供 gRPC 的操作，显式选择 --transport grpc 并省略两个 HTTP 参数：
 
 ```sh
-"$NOSTOSX" add api ping --service order --dir .
-make generate NOSTOSX="$NOSTOSX"
+"$NOSTOSX" add api ping --transport grpc --service order --dir .
+task api ACTION=generate NOSTOSX="$NOSTOSX"
 go mod tidy
 ```
 
@@ -177,7 +185,7 @@ go mod tidy
 
 ```sh
 "$NOSTOSX" api scaffold --service order --dir .
-make generate NOSTOSX="$NOSTOSX"
+task api ACTION=generate NOSTOSX="$NOSTOSX"
 go mod tidy
 ```
 
@@ -204,20 +212,21 @@ Proto 目录。有契约时检查 Buf 1.72.0，空骨架跳过 Buf。
 它仅执行可信的 `go version`、`buf --version`，设置超时并禁止 Go 自动下载工具链；
 不安装工具、不下载依赖、不修改工程文件。JSON 只写入标准输出；检查失败退出码为 1，
 摘要写入标准错误。Doctor 用于环境准备，代码、契约语义和产物一致性仍由
-`make check` 与 `make api-check` 验证。
+`task check` 验证代码；启用 gRPC 的工程另外使用 `task api` 验证契约与生成产物。
 
 两种布局遵循相同边界：
 
 ```text
-api/proto/<context>/v1/               添加服务后创建的契约
+api/proto/<context>/v1/               仅 gRPC 工程的源契约
 api/gen/go/                          生成的 Go/gRPC/gateway 代码
 api/http/                            HTTP 绑定及 OpenAPI 配置
 application/<context>/command/       应用自行实现的写用例
 application/<context>/query/         应用自行实现的读用例
 domain/<context>/                    应用自行实现的领域
-services/<name>/module.go            显式服务装配
-services/<name>/internal/port/rpc/    入站适配器
-infrastructure/bootstrap/            传输配置及生命周期
+services/<name>/app.go               服务 Run 与显式 handler 挂载
+services/<name>/internal/port/{http,rpc}/  按需启用的入站适配器
+infrastructure/config/              参数、环境变量与配置校验
+infrastructure/server/              HTTP/gRPC 构造，不接收启动回调
 infrastructure/rpc/                  认证及安全 RPC 错误
 infrastructure/agent/                可选的模型配置及有界执行
 ```
@@ -231,24 +240,26 @@ infrastructure/agent/                可选的模型配置及有界执行
 ## 验证修改
 
 ```sh
-make check
-make lint
-make vulncheck
-make smoke
-make templates-lint
-make templates-vulncheck
+task check INTEGRATION=true
+task lint
+task vulncheck
 ```
 
-`make check` 验证 CLI 及四种布局/agent 组合，同时检查初始工程和添加上下文、服务、API 后的工程。
-`make smoke` 在临时 loopback 端口运行宿主及新增服务，验证单体显式装配、信号退出，
-验证 API 认证和未实现响应，并通过本地模型 fixture 验证 agentx。
-模板 lint 和漏洞检查也覆盖扩展前后两种状态。
-无需 Docker、模型凭据或同级源码。单测、进程冒烟和模板检查均使用 Go 测试；
+公开入口只有 `check`、`test`、`build`、`lint`、`vulncheck`、`fmt`、`fix`、`tidy` 八个，
+直接执行 `task` 等同于 `task check`。`task test RACE=true` 开启竞态检测，
+`COVER=true` 同时开启竞态检测，写入 `coverage.out` 并显示覆盖率；`check` 复用开启竞态检测的 `test`，
+保留调用者的 `INTEGRATION` 选择。默认测试与检查不需要 Buf。
+`INTEGRATION=true` 显式开启 Go/Buf 契约验收和十二种布局/agent/传输组合，
+覆盖初始工程及添加上下文、服务、API 后的工程；CI 使用该模式。
+
+`lint` 和 `vulncheck` 默认同时检查 CLI 与全部生成模板的扩展前后状态，
+可用 `SCOPE=cli` 或 `SCOPE=templates` 选择范围，无需额外的任务名称。
+无需 Docker、模型凭据或同级源码。单测、集成测试和模板检查均使用 Go 测试；
 契约集成测试直接执行 Go CLI，需要 Buf 1.72.0，无需 Python 或生成工具源码。
 
 命令树在 `internal/cli`，受限写入及内嵌模板在 `internal/scaffold`。
 Go 工具不会直接检查 `.tmpl`，模板修改必须验证实际生成项目。
-修改 Starter 不会自动改变模板或已生成的应用。
+升级 CLI 不会自动修改已生成的应用。
 
 参见[贡献指南](CONTRIBUTING.md)、[安全说明](SECURITY.md)、
 [发布说明](RELEASING.md)、[变更记录](CHANGELOG.md)和 [MIT 许可](LICENSE)。

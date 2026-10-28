@@ -3,8 +3,8 @@
 Read README.md, CONTRIBUTING.md and native CI before changes. Use Go 1.27.3 and
 GOWORK=off; load relevant Go CLI, layout and testing skills when available.
 
-- This repository owns the CLI and embedded templates. nostosx-starter separately
-  owns the runnable product/inventory/assistant examples; generation never fetches it.
+- This repository owns the CLI, embedded templates and generated-project acceptance.
+  Runnable library examples belong to agentx-examples and servex-examples.
 - Default output is a clean skeleton: no business contexts, database, migrations,
   placeholder APIs, architecture-test package or project metadata file.
 - Both layouts use one module. Monolith adds cmd/server; microservices starts
@@ -13,10 +13,11 @@ GOWORK=off; load relevant Go CLI, layout and testing skills when available.
   model APIs from source scaffolding. Other api commands execute trusted contract tools.
   Preserve no-overwrite behavior, root confinement, cancellation,
   exclusive additions and rollback of owned outputs.
-- add context declares packages. add service adds an empty versioned Proto,
-  adapters, module.go and a standalone entry point, without rewriting existing files.
+- Default transport is native HTTP; --transport grpc or http,grpc explicitly enables Proto/gRPC.
+  add service inherits configured transports, adds only their adapters and does not rewrite files.
+  Native HTTP add api creates one adapter with explicit mounting; no Proto, generator or stub tests.
 - add api edits only the target service Proto's imports/RPCs and creates messages,
-  HTTP bindings and unimplemented adapters/tests. Parse inputs, reject collisions,
+  HTTP bindings and unimplemented adapters, without stub tests. Parse inputs, reject collisions,
   publish the Proto last and roll back owned files on normal errors. Do not mount
   HTTP handlers or invent CQRS use cases; authorization and assembly stay explicit.
 - Domain/application packages remain free of transport dependencies. Use narrow
@@ -31,12 +32,12 @@ GOWORK=off; load relevant Go CLI, layout and testing skills when available.
   preserve matching implementations and reject incompatible signatures or streams.
   doctor reads project files and trusted tool versions, without installing tools,
   fetching modules or writing files. Its JSON stdout must stay machine-readable.
-- Run make check, lint, vulncheck, smoke, templates-lint and templates-vulncheck.
-  Verify pristine and extended forms of all four variants without sibling replaces.
+- Run task check INTEGRATION=true, lint and vulncheck.
+  Verify pristine and extended forms of all twelve layout/agent/transport variants without sibling replaces.
 - Do not initialize Git, commit, push, tag or publish unless explicitly requested.
 
 Contracts: api/proto/<context>/v1/; output: api/gen/go/; HTTP bindings:
 api/http/routes/<context>.yaml; operation options: api/http/operations/<context>.yaml.
-OpenAPI output uses Swagger 2. Inbound adapters: services/<name>/internal/port/rpc/.
+OpenAPI output uses Swagger 2. Inbound adapters: services/<name>/internal/port/{http,rpc}/.
 Use action-and-object use-case filenames, matching tests and stable CQRS metadata
 when implementing actual business behavior. Do not invent use cases for new contexts.

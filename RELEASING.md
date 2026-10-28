@@ -1,27 +1,25 @@
 # Releasing nostosx-cli
 
 A release identifies the CLI, its embedded templates
-and their pinned dependencies together. nostosx-starter source snapshots are
-versioned separately and are not bundled or downloaded during generation.
+and their pinned dependencies together. Generation uses the embedded templates.
 Generated applications own their source; they are not upgraded by replacing the
 generator binary.
 
 Before publication:
 
-1. Verify published servex v1.2.0, grpcx v1.1.0, agentx v1.2.0 and provider
-   v1.1.0 dependencies and checksums through the public Go proxy, without sibling
+1. Verify published servex v1.3.0, grpcx v1.2.0, agentx v1.2.1 and provider
+   v1.2.0 dependencies and checksums through the public Go proxy, without sibling
    replacements or development proxies. Confirm repository ownership, the `github.com/nostosx/nostosx-cli` module
    path, the `nostosx` executable name and a private security-reporting channel.
-2. Run `make check`, `make lint`, `make vulncheck`, `make smoke`,
-   `make templates-lint` and `make templates-vulncheck` from an independent source
-   copy with `GOWORK=off`. Verify both layouts with and without agentx.
+2. Run `task check INTEGRATION=true`, `task lint` and `task vulncheck` from an
+   independent source copy with `GOWORK=off`. Lint and vulnerability scans include
+   the rendered templates. Verify all twelve layout/agent/transport variants.
 3. Follow the bilingual README from a clean directory. Check generation, module
-   resolution, empty-project health, added contexts/services, explicit monolith
-   assembly, signal shutdown and the optional agent runner's local provider fixture. Do not infer live-provider
-   acceptance from fixture results.
+   resolution, added contexts/services/APIs and the optional agent runner's local
+   provider tests. Do not infer live-provider acceptance from fixture results.
 4. Review licenses, dependency checksums, template output, version metadata and
    changelog. Build with an explicit version, for example
-   `go build -trimpath -ldflags "-s -w -X main.version=v1.1.0" -o bin/nostosx ./cmd/nostosx`.
+   `go build -trimpath -ldflags "-s -w -X main.version=v1.2.0" -o bin/nostosx ./cmd/nostosx`.
    Verify `nostosx --version`. A tagged `go install` uses Go's module build
    metadata. Source builds can report a Go-derived module version, including a
    pseudo-version; builds without version metadata report `dev`.
@@ -48,29 +46,30 @@ cache through the public proxy and sumdb:
 
 ```sh
 GOWORK=off GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org \
-  go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.1.0
+  go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.2.0
 nostosx --version
 ```
 
 The CLI uses Go for installation and contract plugins; Buf is required when contracts
 exist. No Python or application-local generator source is needed. Generated
-Makefiles default to CLI v1.1.0; check that this pin matches the approved release.
+Taskfiles default to CLI v1.2.0; check that this pin matches the approved release.
 For source development, use a source-built binary through the NOSTOSX override.
 
-The generated core uses published servex v1.2.0 and grpcx v1.1.0; optional
-agentx and provider use v1.2.0 and v1.1.0. Update pinned versions and checksums before independently checking
+Generated projects use published servex v1.3.0; only gRPC-enabled projects need grpcx v1.2.0. Optional
+agentx and provider use v1.2.1 and v1.2.0. Update pinned versions and checksums before independently checking
 consumers. Do not move any existing published tags.
 
-Contract changes also require Buf 1.72.0: run `make api-lint`,
-`make generate`, `make api-check` and `make api-breaking API_BASE=<baseline>` in
-the application source. For the CLI, apply these checks to each generated variant.
+Contract changes also require Buf 1.72.0: run `task api ACTION=lint`,
+`task api ACTION=generate`, `task api` and `task api ACTION=breaking API_BASE=<baseline>` in
+the application source. For the CLI, apply contract checks only to gRPC-enabled variants. Verify all twelve
+layout/agent/transport combinations with their applicable quality gates.
 Review versioned protobuf, per-context HTTP mappings, OpenAPI operation options
 and pinned generators together with generated Go/gRPC/gateway and OpenAPI 2 output.
 Confirm that the initial empty project needs no Buf or placeholder contracts.
-After add service or add api, require explicit generation and go mod tidy before
-building; the first HTTP API also needs the pinned grpc-gateway runtime described
-in the README. Verify real RPC authentication/unimplemented responses, route and symbol
+Native HTTP services/APIs require no generation, Buf or gateway runtime.
+Only Proto additions require explicit generation and go mod tidy before building;
+the first gateway API also needs the pinned grpc-gateway runtime in the README. Verify real RPC authentication/unimplemented responses, route and symbol
 conflicts, preservation of existing Proto source and partial-output rollback.
 Exercise HTTP health and authenticated native gRPC in both process topologies and check
 that application/domain packages remain free of transport dependencies. Do not
-infer cross-host TLS deployment acceptance from plaintext loopback smoke tests.
+infer cross-host TLS deployment acceptance from plaintext loopback integration tests.

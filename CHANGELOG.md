@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased
+
+## v1.2.0 - 2026-10-28
+
+- Pin generated projects to servex v1.3.0, grpcx v1.2.0 and optional agentx
+  v1.2.1/provider v1.2.0. Taskfiles use CLI v1.2.0 for contract operations.
+
+- Generated service Register functions only mount handlers and no longer accept
+  an unused context or return an always-nil error. Keep real construction and
+  startup errors at the service entry point.
+
+- Generate configuration parsing in `infrastructure/config`, transport
+  constructors in `infrastructure/server` and service assembly in `app.go`.
+  Commands call `service.Run(ctx, cfg)` directly; remove RunCLI, the bootstrap
+  package and host registration callbacks. Monoliths mount services explicitly
+  before app.New. Update existing generated applications manually; additions
+  do not rewrite their startup code.
+
+- Standardize the CLI and generated applications on eight public Task commands:
+  check, test, build, lint, vulncheck, fmt, fix and tidy. Bare task selects check;
+  test accepts RACE/COVER/INTEGRATION options. Lint and vulnerability scans include
+  template acceptance, with an optional SCOPE selector. Generated Proto projects
+  expose one additional api task with ACTION=generate|lint|check|breaking, default
+  check; HTTP-only projects have no contract task. Existing generated projects
+  need an explicit Taskfile update to adopt these entry points.
+
+- Default new projects and add api to native HTTP. Explicit --transport grpc or
+  http,grpc enables contract tooling; --transport gateway selects Proto HTTP mapping.
+  Services inherit the server construction shape without project metadata. HTTP-only
+  projects contain no Proto, gRPC listener/dependency, Buf configuration or contract CI.
+- Stop generating Unimplemented assertion tests; preserve application-owned behavior tests.
+- Verify pristine and extended projects across twelve layout/agent/transport combinations.
+
+- Remove smoke tasks, CI jobs and dedicated process suites from the CLI and
+  generated projects. Keep normal/integration tests and template quality gates.
+
+- Development tooling: replace Make entry points with Task v3.53.1 in local
+  checks, CI and contribution/release instructions. Use `task check`, `task lint`
+  and `task vulncheck`; check coverage, build tags and failure gates are preserved.
+- Generated applications now contain `Taskfile.yml`; their CI and documentation
+  use Task. Validate pristine and extended forms of all twelve variants through
+  the generated Task entry points. Existing generated projects retain their files.
+
 ## v1.1.0 - 2026-10-27
 
 - Generated projects use servex v1.2.0, servex-contrib transport/grpcx v1.1.0

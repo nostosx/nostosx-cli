@@ -1,10 +1,10 @@
 # Contributing
 
-This repository owns the nostosx CLI and embedded clean-project templates.
-nostosx-starter separately maintains runnable business examples. Neither needs
-its sibling checkout to build or test.
+This repository owns the nostosx CLI, embedded clean-project templates and
+generated-project acceptance. It needs no sibling checkout to build or test.
+Runnable library examples belong to agentx-examples and servex-examples.
 
-Use Go 1.27.3, Make and `GOWORK=off`. Do not add local replacements. Install tools
+Use Go 1.27.3, Task v3.53.1 and `GOWORK=off`. Do not add local replacements. Install tools
 outside the module, with their binaries on PATH:
 
 ```sh
@@ -13,23 +13,38 @@ go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
 go install github.com/bufbuild/buf/cmd/buf@v1.72.0
 ```
 
-Tests, process checks and contract builds are written in Go. Run:
+Tests and contract builds are written in Go. Run:
 
 ```sh
 go mod download
-make check
-make lint
-make vulncheck
-make smoke
-make templates-lint
-make templates-vulncheck
+task check INTEGRATION=true
+task lint
+task vulncheck
 ```
 
 `GO`, `GOFMT`, `GOLANGCI_LINT` and `GOVULNCHECK` select executables. Generated
-Makefiles pin CLI v1.0.0; tests override `NOSTOSX` with the binary built from
+Taskfiles pin CLI v1.1.0; tests override `NOSTOSX` with the binary built from
 this checkout. Use that override when developing the CLI or its templates.
 Generated projects resolve pinned public modules. Tests use temporary files,
 loopback listeners and local model fixtures, without Docker or paid model APIs.
+
+Install [Task](https://taskfile.dev/docs/installation/) v3.53.1 outside the module,
+matching CI, and put its binary on `PATH`:
+
+```sh
+go install github.com/go-task/task/v3/cmd/task@v3.53.1
+```
+
+Run `task --list` to discover tasks. Tool overrides accept environment variables or
+Task arguments, for example `task check GO="/path with spaces/go"`.
+Checks force `GOWORK=off`; `check`, `lint` and `vulncheck` do not apply source fixes.
+
+The public entry points are `check`, `test`, `build`, `lint`, `vulncheck`, `fmt`,
+`fix` and `tidy`; bare `task` selects `check`. Tests accept `RACE=true`,
+`COVER=true` and `INTEGRATION=true`; coverage also enables race detection. Check enables race detection and forwards
+the integration choice. Integration mode needs Buf and retains all twelve
+pristine/extended generated-project variants. Lint and vulnerability scans include
+the CLI and rendered templates by default; `SCOPE=cli|templates` selects one side.
 
 ## Implementation boundaries
 
@@ -54,9 +69,14 @@ creates an empty Proto service and explicit assembly. It must not edit existing
 contracts, dependencies or composition roots. New features need an observable,
 necessary effect; avoid speculative configuration or abstractions.
 
-`add api` is the deliberate exception for existing contracts: parse Proto syntax
+Native HTTP is the default. Project --transport grpc or http,grpc explicitly enables
+Proto/gRPC; add service reads the server construction shape instead of storing project metadata.
+Native HTTP APIs create only an adapter and explicit mount helper, without Buf or
+contract generation. Keep their symbol/route collision and no-overwrite checks.
+
+`add api --transport grpc|gateway` is the deliberate exception for existing contracts: parse Proto syntax
 and edit only the target v1 service's imports/RPCs. Use embedded templates for new
-messages, bindings and adapters. Check all external HTTP bindings, package symbols
+messages, bindings and adapters; do not generate stub tests. Check all external HTTP bindings, package symbols
 and Handler methods/fields before writing. Reject unsupported mapping forms;
 do not infer CRUD, CQRS use cases or application authorization. Preserve user
 comments, shared-lock ownership and rollback on normal errors. Replace the target
@@ -65,7 +85,7 @@ transactional rollback guarantee.
 
 Domain/application code must remain independent of protobuf, gRPC and telemetry
 backends. Put consumer-owned ports beside use cases and inbound adapters in
-`services/<name>/internal/port/rpc`. Compose services explicitly in `module.go`.
+`services/<name>/internal/port/rpc`. Compose services explicitly in `app.go`.
 When real use cases need CQRS, use servex/cqrs with stable operation metadata;
 select contrib middleware explicitly at assembly. Do not generate fake use cases
 solely to demonstrate those dependencies.
@@ -83,7 +103,7 @@ selection must come from trusted startup configuration, never request input.
 
 ## Tests and contracts
 
-A CLI build does not check embedded `.tmpl` sources. Test all four layout/agent
+A CLI build does not check embedded `.tmpl` sources. Test all twelve layout/agent/transport
 combinations before and after adding contexts, services and APIs. Assert behavior and
 filesystem outcomes rather than incidental whitespace. Generated modules must
 stay tidy and pass readonly builds, vet, modernization and shuffled race tests.
@@ -94,8 +114,8 @@ project lock. Do not embed tool source in generated applications. Preserve
 cancellation, symlink rejection, staged publication and normal-error rollback.
 Contract checks use Buf 1.72.0, protoc-gen-go v1.36.12, protoc-gen-go-grpc v1.6.0
 and grpc-gateway/openapiv2 v2.29.0. Empty projects must not invoke these tools.
-Adding or changing contracts requires `make generate`, `go mod tidy` and
-`make api-check`. After adding the first HTTP API, explicitly select
+Adding or changing contracts requires `task api ACTION=generate`, `go mod tidy` and
+`task api`. After adding the first gateway API, explicitly select
 `github.com/grpc-ecosystem/grpc-gateway/v2@v2.29.0` before tidying, as shown in
 the README. Test stale output cleanup, plugin-failure isolation, UTF-8/LF
 output and shared `.nostosx.lock` ownership. Breaking checks require an explicit

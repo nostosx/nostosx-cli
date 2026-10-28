@@ -6,32 +6,30 @@ agentx integration. Both layouts use one Go module.
 
 [简体中文](README.zh-CN.md)
 
-## CLI and Starter
-
-| Project | Purpose |
-| --- | --- |
-| nostosx-cli | Generate an engineering skeleton, then add your own contexts and services. |
-| nostosx-starter | Run and adapt a reference application with product, inventory and agent examples. |
-
-This repository owns the executable and embedded templates. Generation does not
-fetch the Starter. Generated applications own their source. Ordinary builds and
-runtime need neither repository; contract development uses the CLI without copying
-its tool source.
+This repository owns the executable, embedded templates and generated-project
+acceptance. Generated applications own their source. Ordinary builds and runtime
+do not need the CLI; contract development uses it without copying its tool source.
+Runnable library examples are maintained in
+[agentx-examples](https://github.com/nostosx/agentx-examples) and
+[servex-examples](https://github.com/nostosx/servex-examples).
 
 ## Install
 
 With Go **1.27.3** or later:
 
 ```sh
-go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.1.0
+go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.2.0
 nostosx --version
 export NOSTOSX="$(command -v nostosx)"
 ```
 
 Ensure Go's binary installation directory is on PATH. Alternatively, download the
-archive for your OS and architecture from [v1.1.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.1.0),
+archive for your OS and architecture from [v1.2.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.2.0),
 verify it against `checksums.txt`, and place the executable on PATH.
 Project builds and contract plugins still require Go; contracts also require Buf.
+
+CLI v1.2.0 includes transport selection, native HTTP scaffolds and the Task-based
+application layout described below.
 
 ## Build from source
 
@@ -57,12 +55,11 @@ back to `dev`. See [RELEASING.md](RELEASING.md) for the publication checks.
 "$NOSTOSX" new workspace --module example.com/acme/workspace --output ../workspace
 cd ../workspace
 go mod download
-export API_TOKEN="$(openssl rand -hex 32)"
 go run ./cmd/server
 ```
 
 In another terminal, `curl http://127.0.0.1:8080/readyz` checks readiness. Stop
-with Ctrl+C. The server exposes HTTP health and authenticated gRPC health; there
+with Ctrl+C. The default server exposes only native HTTP health, without gRPC, Proto or Buf. There
 are no business routes, database, migrations, sample contexts or architecture
 test package. Follow the generated bilingual README for configuration and extension.
 
@@ -71,6 +68,9 @@ test package. Follow the generated bilingual README for configuration and extens
 | `--module` | Required lowercase Go module path owned by the application |
 | `--layout monolith` | Default; adds a runnable `cmd/server` host |
 | `--layout microservices` | Repository skeleton; add services before running a process |
+| `--transport http` | Default; native HTTP without Proto, gRPC or contract CI |
+| `--transport grpc` | Only gRPC, with contract tools and authentication |
+| `--transport http,grpc` | Both transports; select gateway per operation |
 | `--with agentx` | Adds model configuration, a bounded runner and tests under `infrastructure/agent` |
 | `--output` | New destination; its parent must exist |
 
@@ -87,26 +87,33 @@ or select business tools; application assembly supplies those explicitly.
 ```sh
 "$NOSTOSX" add context order --dir .
 "$NOSTOSX" add service order --dir .
-make generate NOSTOSX="$NOSTOSX"
-go mod tidy
-go run ./services/order/cmd/order -addr 127.0.0.1:8081 -grpc-addr 127.0.0.1:9091
+go run ./services/order/cmd/order -addr 127.0.0.1:8081
 ```
 
-`add context` declares domain and application packages, including command/query
-packages, through `doc.go`. It does not invent use cases or persistence.
-`add service` requires the same-named context and creates an empty versioned
-Proto service, RPC adapter, registration function and standalone entry point.
-HTTP mapping and operation files initially contain guidance comments only.
-Define real RPCs and their HTTP bindings when implementing the service.
+Contexts only declare domain/application packages, without invented use cases or persistence.
+Services inherit enabled transports from the server constructors, adding app.go, private adapters and a standalone entry.
+Default HTTP services contain no Proto and need no generation. A gRPC-enabled project adds versioned contracts;
+install Buf 1.72.0, run task api ACTION=generate and go mod tidy before building it.
+Additions read the current go.mod and server constructors without duplicate metadata, dependency edits or assembly rewrites.
 
-After adding a service, explicitly regenerate contracts and tidy dependencies.
-Install Buf 1.72.0 first; pinned Go plugins are downloaded during
-contract generation. An initial project has no contracts and builds without Buf.
-See the generated README for explicit monolith registration and agent assembly.
-Additions read the module from `go.mod`, not separate metadata. Context/service
-additions create new files; neither changes existing assembly or dependencies.
+## Add a native HTTP operation
 
-## Build contracts
+```sh
+"$NOSTOSX" add api get-order --service order --method GET --path '/v1/orders/{order_id}'
+```
+
+The default --transport http creates only services/order/internal/port/http/get_order.go: request/response types,
+Handler.GetOrder and RegisterGetOrder. Path parameters start as strings; choose final payload types for the application.
+Implement authorization, mapping and the application call, then explicitly call RegisterGetOrder(server, handler) from the HTTP package's Register.
+No Proto, OpenAPI, stub tests or business use cases are generated. No contract generation or automatic mounting occurs.
+Duplicate symbols, existing files and recognizable static HTTP route overlaps are rejected before writing; maintain dynamic routes manually.
+
+## Build optional Proto contracts
+
+Select --transport grpc or --transport http,grpc when creating the project.
+Changing transports in an existing application requires reviewing assembly and dependencies; the CLI does not rewrite them automatically.
+
+
 
 Source scaffolding and contract builds are separate operations:
 
@@ -122,36 +129,35 @@ compares paths and content without changing published output. `api lint` runs
 Buf lint; `api breaking` requires an explicit Buf baseline. All four commands
 share the additions lock. Plugins must succeed before output is replaced.
 
-Generated Makefiles call CLI v1.1.0 through `go run`, without adding it to the
+Generated Taskfiles call CLI v1.2.0 through `go run`, without adding it to the
 application module. To use a source-built binary, run
-`make generate api-check NOSTOSX="$NOSTOSX"`.
+`task api ACTION=generate NOSTOSX="$NOSTOSX"`, then `task api NOSTOSX="$NOSTOSX"`.
 `NOSTOSX_VERSION` selects another reviewed release. For a local binary, set
 `NOSTOSX` to its absolute path. Build and test targets do not invoke the CLI.
 Go, Buf, project configuration and plugin sources must be trusted; contract
 commands are not a sandbox. Go plugins may access the network and module cache.
 
-## Add an API
+## Add a Proto API
 
 After creating a context and service, add an operation explicitly:
 
 ```sh
-"$NOSTOSX" add api create-order --service order --method POST --path /v1/orders --dir .
-"$NOSTOSX" add api get-order --service order --method GET --path '/v1/orders/{order_id}' --dir .
-make generate NOSTOSX="$NOSTOSX"
+"$NOSTOSX" add api create-order --transport gateway --service order --method POST --path /v1/orders --dir .
+"$NOSTOSX" add api get-order --transport gateway --service order --method GET --path '/v1/orders/{order_id}' --dir .
+task api ACTION=generate NOSTOSX="$NOSTOSX"
 go get github.com/grpc-ecosystem/grpc-gateway/v2@v2.29.0
 go mod tidy
-make api-check NOSTOSX="$NOSTOSX"
+task api NOSTOSX="$NOSTOSX"
 ```
 
 `create-order` becomes the `CreateOrder` RPC in `OrderService`. The command edits
 only `api/proto/order/v1/order.proto` to add an import and RPC declaration. It
-creates four files:
+creates three files:
 
 ```text
 api/proto/order/v1/create_order.proto                 request and response messages
 api/http/routes/order_create_order.yaml                HTTP binding
 services/order/internal/port/rpc/create_order.go        unimplemented Handler method
-services/order/internal/port/rpc/create_order_test.go   stub regression test
 ```
 
 The explicit `go get` pins the gateway runtime to the generator version. The
@@ -166,10 +172,9 @@ segments and simple `{field_name}` parameters, not wildcards, nested fields or
 query strings. API names use lowercase hyphenated slugs; the target must be an
 existing generated v1 service.
 
-The adapter returns gRPC `Unimplemented` until implemented; replace the stub test
-with application behavior tests as you implement it. The command does not create
+The adapter returns gRPC `Unimplemented` until implemented. Add application behavior tests when implementing it; no stub test is generated. The command does not create
 CQRS use cases, mount HTTP handlers or change service registration. Define
-authorization and explicitly mount the generated gateway handlers in `module.go`
+authorization and explicitly mount the generated gateway handlers in `app.go`
 before exposing HTTP. An OpenAPI entry documents a contract, not a running route.
 
 Duplicate Proto symbols, Handler methods/fields, existing output files and
@@ -178,11 +183,11 @@ a parameter and a literal in the same segment can overlap. Existing inline
 `google.api.http`, wildcard/custom mappings or unsupported path patterns require
 manual editing; the command refuses to guess their interaction with YAML bindings.
 
-For a gRPC-only operation, omit both HTTP flags:
+For a gRPC-only operation, select --transport grpc and omit both HTTP flags:
 
 ```sh
-"$NOSTOSX" add api ping --service order --dir .
-make generate NOSTOSX="$NOSTOSX"
+"$NOSTOSX" add api ping --transport grpc --service order --dir .
+task api ACTION=generate NOSTOSX="$NOSTOSX"
 go mod tidy
 ```
 
@@ -196,7 +201,7 @@ then fill missing transport methods:
 
 ```sh
 "$NOSTOSX" api scaffold --service order --dir .
-make generate NOSTOSX="$NOSTOSX"
+task api ACTION=generate NOSTOSX="$NOSTOSX"
 go mod tidy
 ```
 
@@ -227,8 +232,8 @@ an empty skeleton skips that tool. It only runs trusted `go version` and
 `buf --version` commands, with a timeout and automatic Go toolchain downloads
 disabled. It never installs tools, fetches dependencies or changes project files.
 JSON goes to stdout; failed checks return exit code 1 with a summary on stderr.
-Doctor is a setup check; use `make check` and `make api-check` to verify code,
-contract semantics and generated output.
+Doctor is a setup check; use `task check` to verify code. gRPC-enabled projects
+additionally use `task api` for contract semantics and generated output.
 
 Both layouts retain the same boundaries:
 
@@ -239,9 +244,10 @@ api/http/                            HTTP bindings and OpenAPI configuration
 application/<context>/command/       write use cases added by the application
 application/<context>/query/         read use cases added by the application
 domain/<context>/                    domain added by the application
-services/<name>/module.go            explicit service assembly
+services/<name>/app.go               service Run and explicit handler mounting
 services/<name>/internal/port/rpc/    inbound transport adapters
-infrastructure/bootstrap/            transport configuration and lifecycle
+infrastructure/config/              flags, environment and configuration validation
+infrastructure/server/              HTTP/gRPC construction without startup callbacks
 infrastructure/rpc/                  authentication and safe RPC errors
 infrastructure/agent/                optional model setup and bounded execution
 ```
@@ -258,29 +264,30 @@ confirming its owner has stopped. `new` does not upgrade existing projects.
 ## Verify changes
 
 ```sh
-make check
-make lint
-make vulncheck
-make smoke
-make templates-lint
-make templates-vulncheck
+task check INTEGRATION=true
+task lint
+task vulncheck
 ```
 
-`make check` covers the CLI and four layout/agent combinations, both pristine and
-after adding contexts, services and APIs. `make smoke` starts generated hosts and added
-services on temporary loopback ports, tests explicit monolith assembly and signal
-shutdown, checks API authentication and unimplemented responses, and uses local
-model fixtures for agentx. Template lint and vulnerability
-gates also run before and after extension. No Docker, model credentials or sibling
-source is needed. All tests are Go tests, including process smoke tests and
-template checks. Contract integration tests execute the Go CLI with Buf 1.72.0.
+The eight public tasks are `check`, `test`, `build`, `lint`, `vulncheck`, `fmt`,
+`fix` and `tidy`. Bare `task` runs `check`. `task test RACE=true` enables race
+detection; `COVER=true` enables race detection, writes `coverage.out` and prints coverage. `check`
+reuses `test` with race detection and preserves the caller's `INTEGRATION` choice.
+The default test/check run needs no Buf. Set `INTEGRATION=true` to include real
+Go/Buf contract checks and all twelve layout/agent/transport combinations, both
+pristine and after adding contexts, services and APIs. CI selects this mode.
+
+`lint` and `vulncheck` cover both the CLI and all rendered-project variants,
+before and after extension. `SCOPE=cli` or `SCOPE=templates` selects one side
+without creating additional task names. No Docker, model credentials or sibling
+source is needed. All tests and template checks are Go tests. Contract integration tests execute the Go CLI with Buf 1.72.0.
 No Python or generated tool source is required.
 
 The CLI command tree is in `internal/cli`; confined writes and embedded templates
 are in `internal/scaffold`; contract builds are in `internal/contract`.
 Go tooling cannot directly check `.tmpl` files, so
-rendered-project checks are required when changing templates. Starter changes do
-not automatically change templates or applications already generated.
+rendered-project checks are required when changing templates. Updating the CLI
+does not automatically change applications already generated.
 
 See [Contributing](CONTRIBUTING.md), [Security](SECURITY.md),
 [Releasing](RELEASING.md), [Changelog](CHANGELOG.md) and [MIT license](LICENSE).
