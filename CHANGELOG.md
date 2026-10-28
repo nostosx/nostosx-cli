@@ -18,6 +18,9 @@
   before app.New. Update existing generated applications manually; additions
   do not rewrite their startup code.
 
+- Read Task argument fixtures with color disabled so CI terminal formatting
+  cannot hide the first recorded invocation.
+
 - Standardize the CLI and generated applications on eight public Task commands:
   check, test, build, lint, vulncheck, fmt, fix and tidy. Bare task selects check;
   test accepts RACE/COVER/INTEGRATION options. Lint and vulnerability scans include

@@ -19,6 +19,7 @@ import (
 // Verify the public Task argument contract with real Task execution and a
 // recording executable, without repeating generated-project build acceptance.
 func TestTaskTestOptions(t *testing.T) {
+	t.Setenv("CLICOLOR_FORCE", "1")
 	fixtureDir := t.TempDir()
 	fixtureSource := filepath.Join(fixtureDir, "fixture.go")
 	write(t, fixtureSource, `package main
@@ -99,7 +100,7 @@ func main() {
 
 func taskCalls(t *testing.T, dir string, args ...string) [][]string {
 	t.Helper()
-	output := runProject(t, dir, "task", args...)
+	output := runProject(t, dir, "task", append([]string{"--color=false"}, args...)...)
 	var calls [][]string
 	for line := range bytes.SplitSeq(output, []byte("\n")) {
 		data, ok := bytes.CutPrefix(line, []byte("NOSTOSX_TASK_ARGS="))
