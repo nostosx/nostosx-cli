@@ -1,0 +1,42 @@
+package config
+
+import (
+ "errors"
+ "flag"
+ "io"
+ [[if .NeedsToken]]"strings"[[end]]
+ "testing"
+)
+
+func TestValidateRejectsUnsafeConfiguration(t *testing.T) {
+ for _, tc := range []struct { name string; edit func(*Config) }{
+  [[if .NeedsToken]]{"short token", func(c *Config) { c.Token = "short" }},
+  {"whitespace token", func(c *Config) { c.Token = strings.Repeat(" ", 32) }},[[end]]
+  [[if .HTTP]]{"public HTTP", func(c *Config) { c.Address = "0.0.0.0:8080" }},[[end]]
+  [[if .GRPC]]{"public RPC", func(c *Config) { c.GRPCAddress = ":9090" }},[[end]]
+ } {
+  t.Run(tc.name, func(t *testing.T) {
+   cfg := Config{[[if .HTTP]]Address: "127.0.0.1:0",[[end]][[if .GRPC]]GRPCAddress: "127.0.0.1:0",[[end]][[if .NeedsToken]]Token: strings.Repeat("a", 32),[[end]]}
+   tc.edit(&cfg)
+   if err := cfg.Validate(); err == nil { t.Fatal("unsafe settings accepted") }
+  })
+ }
+}
+
+func TestParseRejectsArguments(t *testing.T) {
+ for _, arg := range []string{"--bad", "unexpected"[[if not .GRPC]], "--grpc-addr"[[end]][[if not .HTTP]], "--addr"[[end]]} {
+  t.Run(arg, func(t *testing.T) {
+   if _, err := Parse("test", []string{arg}, io.Discard); err == nil { t.Fatal("invalid argument accepted") }
+  })
+ }
+ if _, err := Parse("test", []string{"--help"}, io.Discard); !errors.Is(err, flag.ErrHelp) { t.Fatal(err) }
+}
+
+func TestParseDefaults(t *testing.T) {
+ [[if .NeedsToken]]t.Setenv("API_TOKEN", strings.Repeat("a", 32))[[end]]
+ cfg, err := Parse("test", nil, io.Discard)
+ if err != nil { t.Fatal(err) }
+ [[if .HTTP]]if cfg.Address != "127.0.0.1:8080" { t.Fatal(cfg) }[[end]]
+ [[if .GRPC]]if cfg.GRPCAddress != "127.0.0.1:9090" { t.Fatal(cfg) }[[end]]
+ if err := cfg.Validate(); err != nil { t.Fatal(err) }
+}

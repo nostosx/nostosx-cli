@@ -192,9 +192,6 @@ func checkNamedAdapter(ctx context.Context, root *os.Root, service, rpc string) 
 		for _, decl := range file.Decls {
 			switch n := decl.(type) {
 			case *goast.FuncDecl:
-				if n.Recv == nil && n.Name.Name == "Test"+rpc+"Unimplemented" {
-					return fmt.Errorf("adapter test %s already exists", n.Name.Name)
-				}
 				if n.Recv != nil && receiverName(n.Recv.List[0].Type) == "Handler" && n.Name.Name == rpc {
 					return fmt.Errorf("handler method %s already exists", rpc)
 				}

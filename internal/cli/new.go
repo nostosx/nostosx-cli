@@ -34,6 +34,7 @@ func newProjectCommand() *cobra.Command {
 	create.Flags().StringVar(&options.Module, "module", "", "Go module path (required)")
 	create.Flags().StringVar(&options.Layout, "layout", "monolith", "Process topology: monolith or microservices")
 	create.Flags().StringVar(&options.Output, "output", "", "New destination directory (default: NAME); parent must exist")
+	create.Flags().StringVar(&options.Transport, "transport", "http", "Enabled transports: http, grpc or http,grpc")
 	create.Flags().StringSliceVar(&features, "with", nil, "Optional feature: agentx")
 	// The static flag name is registered immediately above.
 	if err := create.MarkFlagRequired("module"); err != nil {

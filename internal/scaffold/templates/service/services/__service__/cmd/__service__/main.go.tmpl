@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"log/slog"
 	"os"
 
 	"github.com/nostosx/servex/app"
 
-	"[[.Module]]/infrastructure/bootstrap"
+	"[[.Module]]/infrastructure/config"
 	service "[[.Module]]/services/[[.Service]]"
 )
 
@@ -19,7 +21,10 @@ func main() {
 }
 
 func run() error {
+	cfg, err := config.Parse("[[.Service]]", os.Args[1:], os.Stderr)
+	if errors.Is(err, flag.ErrHelp) { return nil }
+	if err != nil { return err }
 	ctx, stop := app.SignalContext(context.Background())
 	defer stop()
-	return bootstrap.RunCLI(ctx, "[[.Service]]", os.Args[1:], os.Stderr, service.Register)
+	return service.Run(ctx, cfg)
 }

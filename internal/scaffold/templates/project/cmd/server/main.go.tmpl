@@ -2,12 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/nostosx/servex/app"
+	"github.com/nostosx/servex/health"
 
-	"[[.Module]]/infrastructure/bootstrap"
+	"[[.Module]]/infrastructure/config"
+	"[[.Module]]/infrastructure/server"
 )
 
 func main() {
@@ -18,8 +23,16 @@ func main() {
 }
 
 func run() error {
+	cfg, err := config.Parse("server", os.Args[1:], os.Stderr)
+	if errors.Is(err, flag.ErrHelp) { return nil }
+	if err != nil { return err }
 	ctx, stop := app.SignalContext(context.Background())
 	defer stop()
-	// Replace nil with explicit service registrations as the application grows.
-	return bootstrap.RunCLI(ctx, "server", os.Args[1:], os.Stderr, nil)
+	var application *app.App
+	check := health.CheckerFunc(func(ctx context.Context) error { return application.Check(ctx) })
+	servers, err := server.New(ctx, cfg, check)
+	if err != nil { return err }
+	// Mount added services explicitly here before starting the listeners.
+	application = app.New(app.WithHooks([[if .HTTP]]servers.HTTP[[end]][[if and .HTTP .GRPC]], [[end]][[if .GRPC]]servers.GRPC[[end]]), app.WithStopTimeout(10*time.Second))
+	return application.Run(ctx)
 }

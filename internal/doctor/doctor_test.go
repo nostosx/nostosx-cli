@@ -19,7 +19,7 @@ func TestInspectProjectAndTools(t *testing.T) {
 		t.Run(map[bool]string{false: "empty", true: "contracts"}[contracts], func(t *testing.T) {
 			t.Parallel()
 			dir := filepath.Join(t.TempDir(), "project")
-			if _, err := scaffold.New(t.Context(), scaffold.Options{Name: "demo", Module: "example.com/demo", Layout: "monolith", Output: dir}); err != nil {
+			if _, err := scaffold.New(t.Context(), scaffold.Options{Name: "demo", Module: "example.com/demo", Layout: "monolith", Transport: "http,grpc", Output: dir}); err != nil {
 				t.Fatal(err)
 			}
 			if contracts {
@@ -74,7 +74,7 @@ func TestInspectFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			dir := filepath.Join(t.TempDir(), "project")
-			if _, err := scaffold.New(t.Context(), scaffold.Options{Name: "demo", Module: "example.com/demo", Layout: "monolith", Output: dir}); err != nil {
+			if _, err := scaffold.New(t.Context(), scaffold.Options{Name: "demo", Module: "example.com/demo", Layout: "monolith", Transport: "http,grpc", Output: dir}); err != nil {
 				t.Fatal(err)
 			}
 			if tc.file != "" {
@@ -98,7 +98,7 @@ func TestInspectFailures(t *testing.T) {
 func TestInspectRejectsSymlinkAndCancellation(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "project")
-	if _, err := scaffold.New(t.Context(), scaffold.Options{Name: "demo", Module: "example.com/demo", Layout: "monolith", Output: dir}); err != nil {
+	if _, err := scaffold.New(t.Context(), scaffold.Options{Name: "demo", Module: "example.com/demo", Layout: "monolith", Transport: "http,grpc", Output: dir}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(t.Context())
@@ -121,7 +121,7 @@ func TestInspectRejectsSymlinkAndCancellation(t *testing.T) {
 func TestInspectRequiresPinnedBufForContracts(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "project")
-	if _, err := scaffold.New(t.Context(), scaffold.Options{Name: "demo", Module: "example.com/demo", Layout: "monolith", Output: dir}); err != nil {
+	if _, err := scaffold.New(t.Context(), scaffold.Options{Name: "demo", Module: "example.com/demo", Layout: "monolith", Transport: "http,grpc", Output: dir}); err != nil {
 		t.Fatal(err)
 	}
 	for _, kind := range []string{"context", "service"} {

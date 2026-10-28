@@ -16,9 +16,10 @@ import (
 	"github.com/nostosx/nostosx-cli/internal/projectfs"
 )
 
-// APIOptions describes an RPC with an optional external HTTP binding.
+// APIOptions describes a native HTTP operation, RPC or gateway binding.
 type APIOptions struct {
 	Name, Service, Method, Path string
+	Transport                   string
 }
 
 // Validate checks explicit API inputs without reading or writing a project.
@@ -29,7 +30,13 @@ func (o APIOptions) Validate() error {
 	if err := validateName(o.Service, true); err != nil {
 		return fmt.Errorf("service: %w", err)
 	}
-	if o.Method == "" && o.Path == "" {
+	if o.Transport != "" && o.Transport != "http" && o.Transport != "grpc" && o.Transport != "gateway" {
+		return errors.New("API transport must be http, grpc or gateway")
+	}
+	if o.Transport == "grpc" {
+		if o.Method != "" || o.Path != "" {
+			return errors.New("gRPC-only APIs do not accept --method or --path; use --transport gateway for HTTP mapping")
+		}
 		return nil
 	}
 	if o.Method == "" || o.Path == "" {
@@ -59,7 +66,7 @@ func (o APIOptions) rpcName() string {
 	return out.String()
 }
 
-// AddAPI adds message and adapter files and edits only the target service Proto.
+// AddAPI adds a native HTTP adapter or extends an explicitly selected Proto API.
 // It runs offline under the shared generator lock. HTTP mounting and business
 // implementation remain explicit application changes. Cooperative writers must
 // honor the lock; rollback covers normal errors, not process termination.
@@ -76,6 +83,22 @@ func AddAPI(ctx context.Context, dir string, o APIOptions) (err error) {
 	if err != nil {
 		return err
 	}
+	transport, err := projectTransport(root)
+	if err != nil {
+		return err
+	}
+	if o.Transport == "" || o.Transport == "http" {
+		if transport == "grpc" {
+			return errors.New("native HTTP API requires an HTTP-enabled project")
+		}
+		return addHTTPAPI(ctx, root, module, o)
+	}
+	if transport == "http" {
+		return errors.New("proto API requires a gRPC-enabled project (new --transport grpc or http,grpc)")
+	}
+	if o.Transport == "gateway" && transport != "http,grpc" {
+		return errors.New("gateway API requires both HTTP and gRPC transports")
+	}
 	protoPath := "api/proto/" + o.Service + "/v1/" + o.Service + ".proto"
 	original, mode, err := readAPIFile(root, protoPath)
 	if err != nil {
@@ -90,6 +113,9 @@ func AddAPI(ctx context.Context, dir string, o APIOptions) (err error) {
 	}
 	if o.Method != "" {
 		if err := checkRoutes(ctx, root, o); err != nil {
+			return err
+		}
+		if err := checkHTTPRoutes(ctx, root, o); err != nil {
 			return err
 		}
 	}
@@ -230,6 +256,7 @@ type apiData struct {
 
 type apiField struct {
 	Name   string
+	GoName string
 	Number int
 }
 

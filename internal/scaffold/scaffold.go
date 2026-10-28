@@ -7,7 +7,9 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"go/ast"
 	"go/format"
+	"go/parser"
 	"go/token"
 	"io"
 	"io/fs"
@@ -31,7 +33,26 @@ var templates embed.FS
 // Options describes a new single-module application and its process topology.
 type Options struct {
 	Name, Module, Layout, Output string
+	Transport                    string
 	Agent                        bool
+}
+
+// HTTP and GRPC select the transports included in the generated process.
+func (o Options) HTTP() bool       { return o.Transport != "grpc" }
+func (o Options) GRPC() bool       { return strings.Contains(o.Transport, "grpc") }
+func (o Options) NeedsToken() bool { return o.GRPC() || o.Agent }
+
+func normalizeTransport(value string) (string, error) {
+	switch value {
+	case "", "http":
+		return "http", nil
+	case "grpc":
+		return "grpc", nil
+	case "http,grpc", "grpc,http":
+		return "http,grpc", nil
+	default:
+		return "", errors.New("transport must be http, grpc or http,grpc")
+	}
 }
 
 type data struct {
@@ -84,6 +105,11 @@ func validateModule(name string) error {
 // New creates Output (or Name when Output is empty). It refuses existing destinations,
 // including empty directories and symlinks. Generation is offline and does not initialize Git.
 func New(ctx context.Context, o Options) (string, error) {
+	var err error
+	o.Transport, err = normalizeTransport(o.Transport)
+	if err != nil {
+		return "", err
+	}
 	if err := o.validate(); err != nil {
 		return "", err
 	}
@@ -141,11 +167,63 @@ func Add(ctx context.Context, dir, kind, name string) (err error) {
 			return fmt.Errorf("service requires a context created with 'add context %s': %w", contextName, err)
 		}
 	}
-	files, err := render(kind, data{Module: modulePath, Context: contextName, Service: name, ServiceType: strings.ToUpper(name[:1]) + name[1:]})
+	o := Options{Module: modulePath}
+	if kind == "service" {
+		o.Transport, err = projectTransport(root)
+		if err != nil {
+			return err
+		}
+	}
+	files, err := render(kind, data{Options: o, Context: contextName, Service: name, ServiceType: strings.ToUpper(name[:1]) + name[1:]})
 	if err != nil {
 		return err
 	}
 	return writeFiles(ctx, root, files)
+}
+
+// Read the generated assembly shape instead of persisting duplicate project metadata.
+func projectTransport(root *os.Root) (string, error) {
+	b, _, err := readAPIFile(root, "infrastructure/server/server.go")
+	if err != nil {
+		return "", fmt.Errorf("read project transports: %w", err)
+	}
+	f, err := parser.ParseFile(token.NewFileSet(), "server.go", b, 0)
+	if err != nil {
+		return "", fmt.Errorf("parse project transports: %w", err)
+	}
+	var http, grpc bool
+	for _, decl := range f.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			typ, ok := spec.(*ast.TypeSpec)
+			if !ok || typ.Name.Name != "Servers" {
+				continue
+			}
+			structure, ok := typ.Type.(*ast.StructType)
+			if !ok {
+				continue
+			}
+			for _, field := range structure.Fields.List {
+				for _, name := range field.Names {
+					http = http || name.Name == "HTTP"
+					grpc = grpc || name.Name == "GRPC"
+				}
+			}
+		}
+	}
+	switch {
+	case http && grpc:
+		return "http,grpc", nil
+	case http:
+		return "http", nil
+	case grpc:
+		return "grpc", nil
+	default:
+		return "", errors.New("server.Servers must declare HTTP or GRPC; select project transports explicitly")
+	}
 }
 
 func readModulePath(root *os.Root) (string, error) {
@@ -199,6 +277,9 @@ func render(group string, d data) (map[string][]byte, error) {
 		}
 		rel := strings.TrimSuffix(strings.TrimPrefix(name, prefix+"/"), ".tmpl")
 		if group == "project" {
+			if !d.GRPC() && (strings.HasPrefix(rel, "infrastructure/rpc/") || rel == "buf.yaml" || strings.HasPrefix(rel, "api/")) {
+				return nil
+			}
 			if !d.Agent && strings.HasPrefix(rel, "infrastructure/agent/") {
 				return nil
 			}
@@ -206,6 +287,14 @@ func render(group string, d data) (map[string][]byte, error) {
 				return nil
 			}
 			if d.Layout == "microservices" && strings.HasPrefix(rel, "cmd/server/") {
+				return nil
+			}
+		}
+		if group == "service" {
+			if !d.GRPC() && (strings.HasPrefix(rel, "api/") || strings.Contains(rel, "/internal/port/rpc/")) {
+				return nil
+			}
+			if !d.HTTP() && strings.Contains(rel, "/internal/port/http/") {
 				return nil
 			}
 		}

@@ -94,7 +94,7 @@ func Run(ctx context.Context, dir, action, against string, stdout, stderr io.Wri
 	}
 	if action == "check" {
 		if !equalFiles(actual, want) {
-			return errors.New("generated contracts differ; run make generate")
+			return errors.New("generated contracts differ; run task api ACTION=generate")
 		}
 		return nil
 	}

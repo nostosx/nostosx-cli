@@ -16,6 +16,7 @@ import (
 func apiProject(t *testing.T) string {
 	t.Helper()
 	o := options(t)
+	o.Transport = "http,grpc"
 	if _, err := scaffold.New(t.Context(), o); err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +29,7 @@ func apiProject(t *testing.T) string {
 }
 
 func apiOptions() scaffold.APIOptions {
-	return scaffold.APIOptions{Name: "create-order", Service: "order", Method: "POST", Path: "/v1/orders/{order_id}"}
+	return scaffold.APIOptions{Name: "create-order", Transport: "gateway", Service: "order", Method: "POST", Path: "/v1/orders/{order_id}"}
 }
 
 func TestAddAPI(t *testing.T) {
@@ -65,14 +66,14 @@ func TestAddAPI(t *testing.T) {
 		t.Fatal("missing request body mapping")
 	}
 	// Multiple additions retain a valid service and use separate files.
-	next := scaffold.APIOptions{Name: "get-order", Service: "order", Method: "GET", Path: "/v1/orders/{id}"}
+	next := scaffold.APIOptions{Name: "get-order", Transport: "gateway", Service: "order", Method: "GET", Path: "/v1/orders/{id}"}
 	if err := scaffold.AddAPI(t.Context(), dir, next); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(read(t, filepath.Join(dir, "api/http/routes/order_get_order.yaml")), "body:") {
 		t.Fatal("GET received a body binding")
 	}
-	if len(snapshot(t, dir)) != len(before)+8 {
+	if len(snapshot(t, dir)) != len(before)+6 {
 		t.Fatal("unexpected output count or temporary files left behind")
 	}
 }
@@ -95,7 +96,7 @@ func TestAPIValidation(t *testing.T) {
 		{"create", "order", "GET", "/{id}/{id}"},
 		{"create", "order", "GET", "/{nested.field}"},
 	} {
-		o := scaffold.APIOptions{Name: tc.name, Service: tc.service, Method: tc.method, Path: tc.path}
+		o := scaffold.APIOptions{Name: tc.name, Transport: "gateway", Service: tc.service, Method: tc.method, Path: tc.path}
 		if err := o.Validate(); err == nil {
 			t.Errorf("accepted %+v", o)
 		}
@@ -135,7 +136,6 @@ func TestAPIConflictsLeaveProjectUnchanged(t *testing.T) {
 		{"inline HTTP", "api/proto/order/v1/order.proto", "", "service OrderService {}", "service OrderService { rpc Other(OldRequest) returns (OldResponse) { option (google.api.http) = {get: \"/elsewhere\"}; }}"},
 		{"adapter method", "services/order/internal/port/rpc/handler.go", "\nfunc (*Handler) CreateOrder() {}", "", ""},
 		{"adapter field", "services/order/internal/port/rpc/handler.go", "", "struct {", "struct { CreateOrder string;"},
-		{"adapter test", "services/order/internal/port/rpc/other_test.go", "package rpc\nimport \"testing\"\nfunc TestCreateOrderUnimplemented(t *testing.T) {}", "", ""},
 		{"route parameters", "api/http/routes/other.yaml", "- selector: other.v1.Other.Create\n  post: /v1/orders/{name}\n", "", ""},
 		{"route literal overlap", "api/http/routes/other.yaml", "- selector: other.v1.Other.Create\n  post: /v1/orders/latest\n", "", ""},
 		{"selector", "api/http/routes/other.yaml", "- selector: order.v1.OrderService.CreateOrder\n  get: /other\n", "", ""},
@@ -143,7 +143,7 @@ func TestAPIConflictsLeaveProjectUnchanged(t *testing.T) {
 		{"invalid YAML", "api/http/routes/other.yaml", "- {post: [", "", ""},
 		{"multiple YAML docs", "api/http/routes/other.yaml", "[]\n---\n[]\n", "", ""},
 		{"custom route", "api/http/routes/other.yaml", "- selector: other.v1.Other.Create\n  custom: {kind: HEAD, path: /other}\n", "", ""},
-		{"existing output", "services/order/internal/port/rpc/create_order_test.go", "package rpc\n", "", ""},
+		{"existing output", "services/order/internal/port/rpc/create_order.go", "package rpc\n", "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -67,13 +67,13 @@ func TestNewLayouts(t *testing.T) {
 					if strings.HasPrefix(name, "domain/") || strings.HasPrefix(name, "application/") || strings.HasPrefix(name, "services/") || strings.HasPrefix(name, "api/proto/") || strings.HasPrefix(name, "api/gen/") {
 						t.Errorf("new project includes an unsolicited context or contract: %s", name)
 					}
-					for _, forbidden := range []string{"catalog", "inventory", "archtest", ".nostosx.json", "get_status", "database/", "cmd/migrate/", "scripts/", "apigen"} {
+					for _, forbidden := range []string{"catalog", "inventory", "archtest", ".nostosx.json", "get_status", "database/", "cmd/migrate/", "scripts/", "apigen", "Makefile", "bootstrap"} {
 						if strings.Contains(name, forbidden) {
 							t.Errorf("unexpected generated path %s", name)
 						}
 					}
 				}
-				for _, name := range []string{"infrastructure/bootstrap/server.go", "Makefile", "README.zh-CN.md"} {
+				for _, name := range []string{"infrastructure/config/config.go", "infrastructure/server/server.go", "Taskfile.yml", "README.zh-CN.md"} {
 					if _, ok := files[name]; !ok {
 						t.Errorf("missing generated file %s", name)
 					}
@@ -83,6 +83,9 @@ func TestNewLayouts(t *testing.T) {
 						t.Fatalf("unrendered module in %s", name)
 					}
 					if strings.HasSuffix(name, ".go") {
+						if strings.Contains(content, "RunCLI") {
+							t.Fatalf("generated command still delegates process startup in %s", name)
+						}
 						if _, err := parser.ParseFile(token.NewFileSet(), name, content, parser.AllErrors); err != nil {
 							t.Fatal(err)
 						}
@@ -206,7 +209,7 @@ func TestAddPreservesFilesAndRollsBack(t *testing.T) {
 	for _, name := range []string{
 		"application/order/query/doc.go",
 		"domain/order/doc.go",
-		"services/order/internal/port/rpc/handler.go",
+		"services/order/internal/port/http/handler.go",
 	} {
 		if _, ok := after[name]; !ok {
 			t.Errorf("missing added file %s", name)
@@ -274,8 +277,12 @@ func TestSymlinksCannotRedirectWrites(t *testing.T) {
 
 func TestAddUsesCurrentModulePath(t *testing.T) {
 	t.Parallel()
-	// add only needs go.mod, not a previous new invocation or project metadata.
-	dir := t.TempDir()
+	// Add reads the current go.mod and server construction shape, never project metadata.
+	o := options(t)
+	if _, err := scaffold.New(t.Context(), o); err != nil {
+		t.Fatal(err)
+	}
+	dir := o.Output
 	const module = "example.com/renamed/shop/v2"
 	goMod := "module " + module + "\n\ngo 1.27.3\n"
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o600); err != nil {
@@ -291,7 +298,7 @@ func TestAddUsesCurrentModulePath(t *testing.T) {
 		t.Fatal("addition rewrote go.mod")
 	}
 	for _, name := range []string{
-		"services/order/module.go",
+		"services/order/app.go",
 	} {
 		if !strings.Contains(files[name], `"`+module+`/`) {
 			t.Fatalf("%s does not use the current module path", name)

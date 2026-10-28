@@ -1,0 +1,26 @@
+package [[.Service]]
+
+import (
+ "testing"
+ "context"
+ "errors"
+
+ [[if .HTTP]]"github.com/nostosx/servex/transport/httpx"[[end]]
+ [[if .GRPC]]"google.golang.org/grpc"[[end]]
+
+ "[[.Module]]/infrastructure/config"
+)
+
+func TestRunRejectsCanceledContext(t *testing.T) {
+ ctx, cancel := context.WithCancel(t.Context()); cancel()
+ if err := Run(ctx, config.Config{}); !errors.Is(err, context.Canceled) { t.Fatal(err) }
+}
+[[if .GRPC]]type registry struct { description *grpc.ServiceDesc; implementation any }
+func (r *registry) RegisterService(description *grpc.ServiceDesc, implementation any) {
+ r.description = description; r.implementation = implementation
+}[[end]]
+func TestRegister(t *testing.T) {
+ [[if .GRPC]]var registrar registry[[end]]
+ Register([[if .HTTP]]httpx.NewServer()[[end]][[if and .HTTP .GRPC]], [[end]][[if .GRPC]]&registrar[[end]])
+ [[if .GRPC]]if registrar.description == nil || registrar.description.ServiceName != "[[.Service]].v1.[[.ServiceType]]Service" || registrar.implementation == nil { t.Fatalf("service not registered: %+v", registrar) }[[end]]
+}

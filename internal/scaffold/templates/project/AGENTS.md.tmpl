@@ -3,28 +3,29 @@
 Read README.md, CONTRIBUTING.md and native CI before editing. Use Go 1.27.3,
 GOWORK=off and published dependencies without sibling replacements.
 
-- This is an application-owned engineering skeleton, not the Starter examples.
-- Add real contexts and services on demand. Keep one module for both topologies.
-- Use nostosx add api for explicit v1 RPC/message/binding/adapter scaffolds, then
-  make generate and go mod tidy. Implement the unimplemented method and its tests;
-  authorization, CQRS use cases and HTTP mounting remain application-owned.
-- Omit both HTTP flags for gRPC-only APIs. For existing Proto contracts, use
-  nostosx api scaffold to fill missing unary methods offline and preserve matching
-  implementations. Add behavior tests when implementing those methods.
-- nostosx doctor only reads project files and trusted tool versions; it neither
-  installs tools nor replaces code and contract checks.
-- Keep application/domain independent of protobuf and gRPC; map at port/rpc.
-- Commands may write; queries only read. Define narrow ports beside real use cases
-  and stable CQRS operation metadata; compose middleware in module.go when needed.
-- Bootstrap owns transport lifecycle; service-private adapters stay internal.
-- Keep loopback defaults and authenticated gRPC. New HTTP routes need explicit
-  authentication, authorization, input bounds and safe error mapping.
-- Agent tools and authorization are explicitly supplied. Model endpoints are
-  trusted startup configuration, never user input. Preserve runner limits.
-- Proto sources and HTTP options are authoritative; regenerate explicitly with
-  the pinned CLI and Buf, tidy dependencies, then check drift. Do not edit generated
-  files or copy generator source into the application. Normal builds need no CLI.
-- Preserve .nostosx.lock ownership and failed-plugin isolation. Do not add project
-  metadata files, fake business examples, empty placeholders or archtest packages.
-- Run make check, lint, vulncheck, api-check and smoke for relevant changes.
+- This is an application-owned single-module [[.Layout]] skeleton using [[.Transport]].
+- Keep dependency assembly explicit in app.go; do not introduce a DI container
+  without an application decision. Commands parse configuration; service Run owns
+  assembly and lifecycle. infrastructure/server only constructs transports.
+- Add contexts and services on demand. Services inherit transport configuration
+  from the server constructors; no duplicate project metadata is stored.
+- Native HTTP add api creates one private adapter, without Proto or generation.
+  Implement authorization and application calls, then mount the route explicitly.
+[[if .GRPC]]- Use add api --transport grpc or gateway for Proto contracts. Gateway requires
+  HTTP and gRPC. Run task api ACTION=generate and go mod tidy after contract changes.
+- api scaffold fills missing unary methods offline, preserving existing implementations.
+  It does not scaffold streams, HTTP bindings, use cases or placeholder tests.
+- Proto and HTTP options are authoritative; never edit api/gen/go or generated OpenAPI.
+  Run task api for contract drift and task api ACTION=breaking with an explicit Git baseline.
+- Preserve authenticated gRPC, request limits, safe errors and cancellation.
+[[end]]- Keep domain/application transport-free. Convert requests/responses in private adapters.
+- Use narrow consumer-owned ports and actual CQRS use cases. Choose middleware at assembly.
+- Maintain literal loopback listener defaults. New HTTP routes need explicit identity,
+  authorization, input limits and safe errors. Test real behavior rather than placeholders.
+- Agent tools and authorization are application-owned. Model endpoints come only from
+  trusted startup configuration. Preserve runner capacity, deadline and token limits.
+- doctor reads project/tool state; it never installs tools, fetches modules or writes files.
+- New/add operations are offline, root-confined and refuse overwrites. Honor .nostosx.lock;
+  never remove another active writer's lock. Preserve rollback of owned additions.
+- Run task check INTEGRATION=true, lint and vulncheck[[if .GRPC]], plus task api[[end]].
 - Never commit, push, tag or deploy without explicit user authorization.

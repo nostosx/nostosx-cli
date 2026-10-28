@@ -1,47 +1,54 @@
 # Contributing
 
-This application owns its generated source. Use Go 1.27.3, Make and GOWORK=off.
-Do not add sibling replacements or depend on the CLI checkout at build time.
+Use Go 1.27.3, Task v3.53.1 and GOWORK=off. This application owns its generated
+source; normal builds do not depend on the CLI checkout. Do not add sibling replaces.
 
-`nostosx add api` can extend an existing generated v1 service. Review its Proto
-import/RPC edit, messages, external HTTP binding and adapter/test files. Define
-payload types, implement the unimplemented RPC and replace the stub test before
-exposing it. Regenerate with `make generate`, run `go mod tidy` and check drift.
-HTTP mounting, per-operation authorization and CQRS use cases are explicit changes.
+Install Task and the check tools outside this module and put their binaries on PATH:
+
+```sh
+go install github.com/go-task/task/v3/cmd/task@v3.53.1
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+```
 
 ```sh
 go mod download
-make check
-make lint
-make vulncheck
-make api-check
-make smoke
+task check INTEGRATION=true
+task lint
+task vulncheck
+[[if .GRPC]]task api[[end]]
 ```
 
-Install golangci-lint v2.15.0 and govulncheck v1.9.0 outside this module. All
-tests and process checks are Go tests. Contract builds use the pinned Go CLI;
-once Proto sources exist, install Buf 1.72.0 on PATH.
-Generation downloads pinned Go plugins; no system protoc is required.
-See README.md for exact generator versions and commands. After changing contracts,
-run make generate, go mod tidy and make api-check. Breaking checks need an explicit
-versioned Git baseline. Never hand-edit generated Go or OpenAPI output.
+Checks force GOWORK=off. GO, GOFMT, GOLANGCI_LINT and GOVULNCHECK select executable
+paths, including spaces. fmt, fix and tidy intentionally apply changes.
+Only check, test, build, lint, vulncheck, fmt, fix and tidy are public general
+tasks. Bare task selects check. Use test RACE=true, COVER=true or INTEGRATION=true
+for race detection, coverage or integration tests. Coverage includes race detection. Check reuses race-enabled test
+and forwards the integration option; CI explicitly enables it.
+[[if .GRPC]]The additional api task selects generate, lint, check or breaking with
+ACTION; its default check does not change generated output.[[end]]
 
-Keep domain and application transport-free. Define consumer-owned ports beside
-real use cases and compose their implementations in services/<name>/module.go.
-Use servex/cqrs when introducing typed commands and queries; middleware belongs
-in assembly. Keep service-private adapters under services/<name>/internal.
-Do not add speculative infrastructure, fake status use cases or architecture-test
-packages to make empty directories look complete.
+Native HTTP APIs need no Proto generation. Review request/response fields, implement
+identity, authorization and application calls, and explicitly mount each handler.
+No placeholder tests are generated; write behavior tests for implemented operations.
+[[if .GRPC]]
+Proto contracts require Buf 1.72.0. Contract tasks call the pinned CLI, which downloads
+pinned Go plugins; no system protoc is needed. Use an absolute NOSTOSX executable
+path for source builds or NOSTOSX_VERSION for a reviewed release.
+After changing Proto or HTTP mapping, run task api ACTION=generate, go mod tidy and task api.
+Select gateway runtime v2.29.0 explicitly when first using gateway bindings. Pure gRPC
+needs no gateway runtime. Never edit generated Go/OpenAPI output. Compatibility checks
+require an explicit versioned Git baseline. All operations honor .nostosx.lock; plugin
+failures preserve old output and ordinary publication errors attempt rollback.
+[[end]]
+Keep domain/application independent of transport types. Place consumer-owned ports
+beside actual use cases and service-private adapters under services/<name>/internal.
+Construct dependencies explicitly in app.go; introduce CQRS/middleware only when
+actual behavior needs it. Do not add fake APIs, database scaffolds or architecture tests.
 
-Test application behavior, cancellation and authorization beside the code.
-Use integration-tagged tests for listeners, model fixtures and external adapters.
-Every process must release resources on cancellation and failed startup. Keep
-fixtures isolated; never use operator model credentials or shared data stores.
-API authentication, per-operation authorization, persistence and migrations are
-application decisions and must be reviewed with their own regression tests.
+Use integration-tagged tests for listeners and model fixtures. Exercise cancellation,
+authorization and cleanup using temporary resources, without operator credentials or
+shared stores. Go tests must join their goroutines before completion.
 
-GO, GOFMT, NOSTOSX, GOLANGCI_LINT and GOVULNCHECK select executables. Use an
-absolute NOSTOSX binary path for source builds; NOSTOSX_VERSION selects a release
-for the default go run invocation. No generator source is copied into this project.
-Template
-upgrades do not automatically update this application; review source changes.
+Template upgrades do not automatically rewrite this application. Review source changes
+and update behavior tests. Publication and deployment require explicit authorization.

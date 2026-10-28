@@ -31,17 +31,25 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+      - name: Install Task
+        uses: go-task/setup-task@v2
+        with:
+          version: '3.53.1'
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27.3"
           cache: false
-      - run: make check
+      - run: task check INTEGRATION=true
 
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+      - name: Install Task
+        uses: go-task/setup-task@v2
+        with:
+          version: '3.53.1'
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27.3"
@@ -51,40 +59,38 @@ jobs:
           install-mode: goinstall
           version: v2.15.0
           install-only: true
-      - run: make lint
+      - run: task lint
 
   vulncheck:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+      - name: Install Task
+        uses: go-task/setup-task@v2
+        with:
+          version: '3.53.1'
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27.3"
           cache: false
       - name: Install scanner outside the module
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
-      - run: make vulncheck
-
-  smoke:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version: "1.27.3"
-          cache: false
-      - run: make smoke
-
+      - run: task vulncheck
+[[if .GRPC]]
   contracts:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+      - name: Install Task
+        uses: go-task/setup-task@v2
+        with:
+          version: '3.53.1'
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27.3"
           cache: false
       - run: go install github.com/bufbuild/buf/cmd/buf@v1.72.0
-      - run: make api-check
+      - run: task api
+[[end -]]

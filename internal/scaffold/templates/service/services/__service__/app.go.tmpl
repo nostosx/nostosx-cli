@@ -1,0 +1,36 @@
+// Package [[.Service]] is the composition root of the [[.Service]] service.
+package [[.Service]]
+
+import (
+ "context"
+ "time"
+
+ "github.com/nostosx/servex/app"
+ "github.com/nostosx/servex/health"
+ [[if .HTTP]]"github.com/nostosx/servex/transport/httpx"[[end]]
+ [[if .GRPC]]"google.golang.org/grpc"[[end]]
+
+ "[[.Module]]/infrastructure/config"
+ "[[.Module]]/infrastructure/server"
+ [[if .HTTP]]httpport "[[.Module]]/services/[[.Service]]/internal/port/http"[[end]]
+ [[if .GRPC]]
+ pb "[[.Module]]/api/gen/go/[[.Service]]/v1"
+ rpcport "[[.Module]]/services/[[.Service]]/internal/port/rpc"[[end]]
+)
+
+// Run assembles this service and owns its transport lifecycle.
+func Run(ctx context.Context, cfg config.Config) error {
+ var application *app.App
+ check := health.CheckerFunc(func(ctx context.Context) error { return application.Check(ctx) })
+ servers, err := server.New(ctx, cfg, check)
+ if err != nil { return err }
+ Register([[if .HTTP]]servers.HTTP[[end]][[if and .HTTP .GRPC]], [[end]][[if .GRPC]]servers.GRPC[[end]])
+ application = app.New(app.WithHooks([[if .HTTP]]servers.HTTP[[end]][[if and .HTTP .GRPC]], [[end]][[if .GRPC]]servers.GRPC[[end]]), app.WithStopTimeout(10*time.Second))
+ return application.Run(ctx)
+}
+
+// Register mounts transport handlers. Construct fallible dependencies before calling it.
+func Register([[if .HTTP]]http *httpx.Server[[end]][[if and .HTTP .GRPC]], [[end]][[if .GRPC]]registrar grpc.ServiceRegistrar[[end]]) {
+ [[if .HTTP]]httpport.Register(http)[[end]]
+ [[if .GRPC]]pb.Register[[.ServiceType]]ServiceServer(registrar, &rpcport.Handler{})[[end]]
+}

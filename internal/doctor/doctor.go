@@ -106,7 +106,14 @@ func inspect(ctx context.Context, dir, cliVersion string, run runner) Report {
 		}
 	}
 	add("module", "go.mod is valid", "Run doctor from a generated project; check its module and Go directives.", err)
+	count, protoErr := protoCount(ctx, root)
+	add("proto", fmt.Sprintf("%d local Proto files", count), "Check api/proto; symlinks and oversized trees are unsupported.", protoErr)
 	b, err = read(root, "buf.yaml")
+	if errors.Is(err, fs.ErrNotExist) && protoErr == nil && count == 0 {
+		report.Checks = append(report.Checks, Check{Name: "buf-config", Status: "skip", Detail: "No Proto contracts; Buf configuration is not required"})
+		report.Checks = append(report.Checks, Check{Name: "buf", Status: "skip", Detail: "No Proto contracts; Buf is not required"})
+		return report
+	}
 	if err == nil {
 		var config struct {
 			Version string `yaml:"version"`
@@ -120,11 +127,9 @@ func inspect(ctx context.Context, dir, cliVersion string, run runner) Report {
 		}
 	}
 	add("buf-config", "Buf configuration matches the project layout", "Restore buf.yaml with version v2 and module path api/proto.", err)
-	count, err := protoCount(ctx, root)
-	add("proto", fmt.Sprintf("%d local Proto files", count), "Check api/proto; symlinks and oversized trees are unsupported.", err)
-	if err == nil && count == 0 {
+	if protoErr == nil && count == 0 {
 		report.Checks = append(report.Checks, Check{Name: "buf", Status: "skip", Detail: "No Proto contracts; Buf is not required yet"})
-	} else if err == nil {
+	} else if protoErr == nil {
 		output, err = run(ctx, "buf", "--version")
 		if err == nil && strings.TrimSpace(output) != contract.RequiredBufVersion {
 			err = fmt.Errorf("require Buf %s", contract.RequiredBufVersion)
@@ -172,7 +177,7 @@ func protoCount(ctx context.Context, root *os.Root) (int, error) {
 	}
 	for _, name := range []string{"api", "api/proto"} {
 		info, err := root.Lstat(name)
-		if errors.Is(err, fs.ErrNotExist) && name == "api/proto" {
+		if errors.Is(err, fs.ErrNotExist) {
 			return 0, nil // Clean skeletons have no contract directory yet.
 		}
 		if err != nil {

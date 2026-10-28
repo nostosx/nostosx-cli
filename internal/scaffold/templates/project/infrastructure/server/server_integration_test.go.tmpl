@@ -1,30 +1,35 @@
 //go:build integration
 
-package bootstrap
+package server
 
 import (
 	"context"
-	"errors"
-	"io"
-	"net/http"
+[[if .HTTP]]	"errors"[[end]]
+[[if .HTTP]]	"io"
+	"net/http"[[end]]
 	"testing"
 	"time"
 
-	"google.golang.org/grpc"
+ "github.com/nostosx/servex/app"
+ "github.com/nostosx/servex/health"
+[[if .GRPC]]	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/status"[[end]]
 )
 
 func TestListenersAndGracefulShutdown(t *testing.T) {
-	cfg := config()
-	application, servers, err := New(t.Context(), cfg, nil)
+	cfg := testConfig()
+	var application *app.App
+ check := health.CheckerFunc(func(ctx context.Context) error { return application.Check(ctx) })
+ servers, err := New(t.Context(), cfg, check)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, stop := context.WithCancel(t.Context())
+	application = app.New(app.WithHooks([[if .HTTP]]servers.HTTP[[end]][[if and .HTTP .GRPC]], [[end]][[if .GRPC]]servers.GRPC[[end]]), app.WithStopTimeout(10*time.Second))
+ ctx, stop := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() { done <- application.Run(ctx) }()
 	t.Cleanup(func() {
@@ -39,13 +44,13 @@ func TestListenersAndGracefulShutdown(t *testing.T) {
 		}
 	})
 	deadline := time.Now().Add(10 * time.Second)
-	for servers.HTTP.URL() == nil || servers.GRPC.URL() == nil {
+	for [[if .HTTP]]servers.HTTP.URL() == nil[[end]][[if and .HTTP .GRPC]] || [[end]][[if .GRPC]]servers.GRPC.URL() == nil[[end]] {
 		if time.Now().After(deadline) {
 			t.Fatal("listeners did not start")
 		}
 		time.Sleep(time.Millisecond)
 	}
-	client := &http.Client{Timeout: 2 * time.Second}
+[[if .HTTP]]	client := &http.Client{Timeout: 2 * time.Second}
 	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, servers.HTTP.URL().String()+"/readyz", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -62,7 +67,7 @@ func TestListenersAndGracefulShutdown(t *testing.T) {
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("readiness=%d", response.StatusCode)
 	}
-	conn, err := grpc.NewClient(servers.GRPC.URL().Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+[[end]][[if .GRPC]]	conn, err := grpc.NewClient(servers.GRPC.URL().Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +101,7 @@ func TestListenersAndGracefulShutdown(t *testing.T) {
 	if result.Status != grpc_health_v1.HealthCheckResponse_SERVING {
 		t.Fatal(result)
 	}
-	request, err = http.NewRequestWithContext(t.Context(), http.MethodGet, servers.HTTP.URL().String()+"/v1/unconfigured", nil)
+[[end]][[if .HTTP]]	request, err = http.NewRequestWithContext(t.Context(), http.MethodGet, servers.HTTP.URL().String()+"/v1/unconfigured", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,4 +113,4 @@ func TestListenersAndGracefulShutdown(t *testing.T) {
 	if response.StatusCode != http.StatusNotFound {
 		t.Fatalf("unexpected business endpoint: %d", response.StatusCode)
 	}
-}
+[[end]]}

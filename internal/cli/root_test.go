@@ -34,11 +34,11 @@ func TestNewAndAdd(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "project with spaces")
 	for _, args := range [][]string{
-		{"new", "shop", "--module", "example.com/shop", "--layout", "microservices", "--with", "agentx", "--output", dir},
+		{"new", "shop", "--module", "example.com/shop", "--layout", "microservices", "--transport", "http,grpc", "--with", "agentx", "--output", dir},
 		{"add", "context", "order", "--dir", dir},
 		{"add", "service", "order", "--dir", dir},
 		{"add", "api", "create-order", "--service", "order", "--method", "POST", "--path", "/v1/orders", "--dir", dir},
-		{"add", "api", "ping", "--service", "order", "--dir", dir},
+		{"add", "api", "ping", "--transport", "grpc", "--service", "order", "--dir", dir},
 		{"api", "scaffold", "--service", "order", "--dir", dir},
 	} {
 		cmd := cli.New("test")

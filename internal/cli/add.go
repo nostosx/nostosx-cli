@@ -9,7 +9,7 @@ import (
 )
 
 func newAddCommand() *cobra.Command {
-	add := &cobra.Command{Use: "add", Short: "Add contexts, services and Proto APIs to a generated project"}
+	add := &cobra.Command{Use: "add", Short: "Add contexts, services and transport APIs to a generated project"}
 	for _, kind := range []string{"context", "service"} {
 		var dir string
 		command := &cobra.Command{
@@ -18,7 +18,7 @@ func newAddCommand() *cobra.Command {
 				if err := scaffold.Add(cmd.Context(), dir, kind, args[0]); err != nil {
 					return err
 				}
-				_, err := fmt.Fprintf(cmd.OutOrStdout(), "Added %s %s. After adding a service, run make generate and go mod tidy; see README.md for explicit assembly.\n", kind, args[0])
+				_, err := fmt.Fprintf(cmd.OutOrStdout(), "Added %s %s. Services inherit project transports. See README.md for explicit assembly; only Proto services require task api ACTION=generate and go mod tidy.\n", kind, args[0])
 				return err
 			},
 		}

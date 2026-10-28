@@ -23,7 +23,7 @@ func newAPIScaffoldCommand() *cobra.Command {
 					return err
 				}
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "%d RPC adapters added. Existing implementations preserved. Run make generate and go mod tidy; implement authorization and application calls.\n", len(created))
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "%d RPC adapters added. Existing implementations preserved. Run task api ACTION=generate and go mod tidy; implement authorization and application calls.\n", len(created))
 			return err
 		},
 	}

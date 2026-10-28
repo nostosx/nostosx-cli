@@ -17,12 +17,12 @@ func TestAddGRPCOnlyAPI(t *testing.T) {
 	t.Parallel()
 	dir := apiProject(t)
 	before := snapshot(t, dir)
-	if err := scaffold.AddAPI(t.Context(), dir, scaffold.APIOptions{Name: "ping", Service: "order"}); err != nil {
+	if err := scaffold.AddAPI(t.Context(), dir, scaffold.APIOptions{Name: "ping", Transport: "grpc", Service: "order"}); err != nil {
 		t.Fatal(err)
 	}
 	after := snapshot(t, dir)
-	if len(after) != len(before)+3 {
-		t.Fatalf("expected three new files, got %d", len(after)-len(before))
+	if len(after) != len(before)+2 {
+		t.Fatalf("expected two new files, got %d", len(after)-len(before))
 	}
 	for name, content := range before {
 		if strings.HasPrefix(name, "api/http/") && after[name] != content {
@@ -30,8 +30,8 @@ func TestAddGRPCOnlyAPI(t *testing.T) {
 		}
 	}
 	for _, options := range []scaffold.APIOptions{
-		{Name: "pong", Service: "order", Method: "GET"},
-		{Name: "pong", Service: "order", Path: "/pong"},
+		{Name: "pong", Transport: "gateway", Service: "order", Method: "GET"},
+		{Name: "pong", Transport: "grpc", Service: "order", Path: "/pong"},
 	} {
 		if err := scaffold.AddAPI(t.Context(), dir, options); err == nil {
 			t.Fatal("accepted incomplete HTTP binding")
