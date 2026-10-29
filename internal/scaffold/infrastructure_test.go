@@ -173,6 +173,10 @@ func TestInfrastructureKeepsHigherVersionsAndComments(t *testing.T) {
 	if err := os.Chmod(p, 0o640); err != nil {
 		t.Fatal(err)
 	}
+	before, err := os.Stat(p)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := scaffold.AddInfrastructure(t.Context(), o.Output, "mysql"); err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +185,7 @@ func TestInfrastructureKeepsHigherVersionsAndComments(t *testing.T) {
 		t.Fatal(got)
 	}
 	info, err := os.Stat(p)
-	if err != nil || info.Mode().Perm() != 0o640 {
+	if err != nil || info.Mode().Perm() != before.Mode().Perm() {
 		t.Fatal(info, err)
 	}
 }
