@@ -110,6 +110,7 @@ The optional agent model constructor reads `AGENT_PROVIDER`, `AGENT_MODEL` and
 | `--transport grpc` | Only gRPC, with contract tools and authentication |
 | `--transport http,grpc` | Both transports; select gateway per operation |
 | `--with agentx` | Adds model configuration, a bounded runner and tests under `infrastructure/agent` |
+| `--with mysql,postgres,kafka,nats` | Selects infrastructure constructors, configuration and pinned backend dependencies; accepts `postgresql` as an alias |
 | `--output` | New destination; its parent must exist |
 
 `new`, `add` and `api scaffold` work offline without executing Go, Buf, shell commands, Git or
@@ -137,7 +138,62 @@ To host a service in the monolith, explicitly call its `Register` from root `app
 before `app.New`. Additions never rewrite an existing composition root.
 Default HTTP services contain no Proto and need no generation. A gRPC-enabled project adds versioned contracts;
 install Buf 1.72.0, run task api ACTION=generate and go mod tidy before building it.
-Additions read the current go.mod and server constructors without duplicate metadata, dependency edits or assembly rewrites.
+Context/service additions read the current go.mod and server constructors without duplicate metadata, dependency edits or assembly rewrites.
+
+## Optional infrastructure
+
+```sh
+"$NOSTOSX" new workspace --module example.com/acme/workspace --with mysql,nats
+cd workspace
+go mod tidy
+APP_MYSQL__DSN='user:password@tcp(127.0.0.1:3306)/app?parseTime=true' go run ./cmd/server
+```
+
+The selected services must already be running. Multiple `--with` values may include
+agentx and either or both databases. Both layouts use the same constructors:
+
+| Feature | Generated package | Backend | Connection settings |
+| --- | --- | --- | --- |
+| mysql | infrastructure/database/mysql | contrib database/sql + go-sql-driver/mysql | mysql.dsn / APP_MYSQL__DSN |
+| postgres | infrastructure/database/postgres | contrib database/sql + pgx/v5 stdlib | postgres.dsn / APP_POSTGRES__DSN |
+| kafka | infrastructure/messaging/kafka | contrib broker/kafka + franz-go | kafka.brokers / APP_KAFKA__BROKERS |
+| nats | infrastructure/messaging/nats | contrib broker/nats + nats.go JetStream | nats.url / APP_NATS__URL |
+
+`config.yaml` contains the selected sections. Viper loads nested `APP_` variables
+with `__` between levels; Kafka brokers accept a comma-separated list. SQL DSNs
+start empty; supply credentials through the deployment environment. The default
+SQL pool has 20 open connections, 10 idle connections, a 30-minute lifetime and
+a 5-minute idle timeout. All resource checks default to five seconds.
+
+`Config.Values` retains the merged configuration snapshot. Each constructor accepts
+the core `config.Reader`; `app.go` owns construction, injection and cleanup. SQL
+resources expose native `*sql.DB`; messaging resources expose the contrib Broker.
+Inject them explicitly into business constructors through consumer-owned ports.
+App starts resources before listeners, includes them in readiness and closes them
+in reverse order. NATS connects during construction and requires JetStream; SQL
+and Kafka verify connectivity during startup. Tables, migrations, topics, streams,
+consumers and containers remain application/deployment responsibilities.
+
+For an existing project:
+
+```sh
+"$NOSTOSX" add infrastructure postgres --dir .
+go mod tidy
+```
+
+This adds the constructor and `config.example.yaml` beside it, and updates only the
+required dependencies in go.mod. It preserves existing application code,
+configuration and go.sum. Merge the example section into your configuration and
+construct/register the resource before transport hooks in app.go. Run tidy explicitly
+after either infrastructure command; generation never downloads modules. PostgreSQL also pins
+the patched golang.org/x/text v0.42.0 dependency floor for its authentication path. Existing
+higher dependency versions and go.mod comments are retained. Repeated additions,
+file collisions and symlinks are rejected; normal failures roll back new outputs.
+
+Subsequently added services inherit available infrastructure constructors. Older
+generated configurations need a `Values config.Reader` field with `json:"-"` and
+`result.Values = loaded.Snapshot()` in Load first; the CLI reports this prerequisite
+before writing service files. Existing composition roots are always edited manually.
 
 ## Add a native HTTP operation
 

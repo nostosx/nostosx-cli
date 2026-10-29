@@ -98,6 +98,7 @@ HTTP 默认监听 `127.0.0.1:8080`，通过 `-addr` 修改；启用 gRPC 时默�
 | `--transport grpc` | 仅 gRPC，启用契约工具和认证 |
 | `--transport http,grpc` | 显式启用两种传输；gateway 按 API 选择 |
 | `--with agentx` | 在 `infrastructure/agent` 添加模型配置、有界执行器及测试 |
+| `--with mysql,postgres,kafka,nats` | 按需添加基础设施构造、配置和固定版本依赖；`postgresql` 是 `postgres` 的别名 |
 | `--output` | 尚不存在的目标路径，父目录必须已存在 |
 
 `new`、`add` 和 `api scaffold` 离线完成，不执行 Go、Buf、Shell、Git 或模型请求；
@@ -121,7 +122,55 @@ go run ./services/order/cmd/order -addr 127.0.0.1:8081
 在单体中启用服务时，在根目录 `app.go` 的 `app.New` 之前显式调用服务的 `Register`；
 新增操作不会自动重写已有装配入口。
 选择了 gRPC 的工程会生成版本化服务契约，须安装 Buf 1.72.0，执行 task api ACTION=generate 和 go mod tidy。
-新增操作读取当前 go.mod 和服务器构造代码，不维护重复元数据，不改动已有装配或依赖。
+新增上下文和服务时读取当前 go.mod 和服务器构造代码，不维护重复元数据，不改动已有装配或依赖。
+
+## 可选基础设施
+
+```sh
+"$NOSTOSX" new workspace --module example.com/acme/workspace --with mysql,nats
+cd workspace
+go mod tidy
+APP_MYSQL__DSN='user:password@tcp(127.0.0.1:3306)/app?parseTime=true' go run ./cmd/server
+```
+
+先准备好所选的基础设施服务。`--with` 可以组合 agentx、数据库和消息系统，
+两种布局共用相同的构造代码，也可以同时选择两种数据库：
+
+| 能力 | 生成目录 | 实现 | 连接配置 |
+| --- | --- | --- | --- |
+| mysql | infrastructure/database/mysql | contrib database/sql + go-sql-driver/mysql | mysql.dsn / APP_MYSQL__DSN |
+| postgres | infrastructure/database/postgres | contrib database/sql + pgx/v5 stdlib | postgres.dsn / APP_POSTGRES__DSN |
+| kafka | infrastructure/messaging/kafka | contrib broker/kafka + franz-go | kafka.brokers / APP_KAFKA__BROKERS |
+| nats | infrastructure/messaging/nats | contrib broker/nats + nats.go JetStream | nats.url / APP_NATS__URL |
+
+新项目的 `config.yaml` 会包含所选配置段。Viper 用双下划线分隔嵌套环境变量，
+Kafka brokers 支持逗号分隔列表。SQL DSN 默认为空，通过部署环境提供凭据。
+默认 SQL 连接池：最大打开 20、最大空闲 10、连接寿命 30 分钟、空闲超时 5 分钟；
+所有资源的连通性检查默认超时 5 秒。
+
+`Config.Values` 保存已合并的配置快照，构造函数接收核心 `config.Reader` 接口。
+`app.go` 集中构造和管理资源：SQL 暴露原生 `*sql.DB`，消息系统暴露 contrib Broker，
+按业务通过消费方定义的窄接口显式注入。App 在监听端口前检查资源，将它们纳入就绪检查，
+关闭时按相反顺序释放。NATS 在构造时连接且需要启用 JetStream，SQL 和 Kafka 在启动时检查连通性。
+表、迁移、topic、stream、业务消费者及容器由应用和部署管理。
+
+给已有项目添加能力：
+
+```sh
+"$NOSTOSX" add infrastructure postgres --dir .
+go mod tidy
+```
+
+命令新增构造源码和同目录的 `config.example.yaml`，并定点更新 go.mod 必要依赖，
+保留现有配置、app.go 和 go.sum。将配置片段合并到主配置，在 app.go 中显式构造资源，
+放在传输 hooks 前面。新建或后续添加基础设施后都需显式执行 tidy，生成命令本身不下载依赖。
+PostgreSQL 同时约束 golang.org/x/text 至少为已修复的 v0.42.0，覆盖认证路径。
+现有更高版本依赖和 go.mod 注释会保留；重复添加、文件冲突和符号链接会被拒绝，
+普通错误会回滚本次新增文件。
+
+之后新增的服务会继承已有基础设施构造。旧版生成配置需先补充带 `json:"-"` 的
+`Values config.Reader` 字段，并在 Load 中设置 `result.Values = loaded.Snapshot()`；
+CLI 会在写入服务文件前提示这项前置条件。已有装配入口始终由应用显式修改。
 
 ## 添加原生 HTTP 接口
 

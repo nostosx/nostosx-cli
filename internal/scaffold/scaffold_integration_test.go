@@ -39,6 +39,15 @@ func TestGeneratedProjects(t *testing.T) {
 	})
 }
 
+func TestGeneratedInfrastructure(t *testing.T) {
+	binary, source := buildCLI(t)
+	forInfrastructureVariants(t, binary, source, func(t *testing.T, project string) {
+		checkInitialProject(t, project, goExecutable())
+		extendProject(t, binary, source, project)
+		checkInitialProject(t, project, goExecutable())
+	})
+}
+
 func TestInitialProjectWithColdModuleCache(t *testing.T) {
 	t.Setenv("GOMODCACHE", t.TempDir())
 	t.Setenv("GOFLAGS", strings.TrimSpace(os.Getenv("GOFLAGS")+" -modcacherw"))

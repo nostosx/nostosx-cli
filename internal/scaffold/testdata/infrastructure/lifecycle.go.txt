@@ -1,0 +1,210 @@
+//go:build integration
+
+package infrastructure_test
+
+import (
+	"context"
+	"errors"
+	"io"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/nats-io/nats-server/v2/server"
+	cfgviper "github.com/nostosx/servex-contrib/config/viper"
+	sxconfig "github.com/nostosx/servex/config"
+	"github.com/twmb/franz-go/pkg/kfake"
+
+	"x.dev/s/infrastructure/config"
+	"x.dev/s/infrastructure/database/mysql"
+	"x.dev/s/infrastructure/database/postgres"
+	"x.dev/s/infrastructure/messaging/kafka"
+	"x.dev/s/infrastructure/messaging/nats"
+)
+
+type values map[string]any
+
+func (v values) Load(ctx context.Context) (map[string]any, error) { return v, ctx.Err() }
+
+func reader(t *testing.T, data values) sxconfig.Reader {
+	t.Helper()
+	cfg, err := cfgviper.New(t.Context(), []sxconfig.Source{data})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg.Snapshot()
+}
+
+type resource interface {
+	Name() string
+	Start(context.Context) error
+	Check(context.Context) error
+	Stop(context.Context) error
+}
+
+func TestConstructorsRejectMissingReaderAndCancellation(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		new  func(context.Context, sxconfig.Reader) (resource, error)
+	}{
+		{"mysql", func(ctx context.Context, r sxconfig.Reader) (resource, error) { return mysql.New(ctx, r) }},
+		{"postgres", func(ctx context.Context, r sxconfig.Reader) (resource, error) { return postgres.New(ctx, r) }},
+		{"kafka", func(ctx context.Context, r sxconfig.Reader) (resource, error) { return kafka.New(ctx, r) }},
+		{"nats", func(ctx context.Context, r sxconfig.Reader) (resource, error) { return nats.New(ctx, r) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := tc.new(t.Context(), nil); err == nil {
+				t.Fatal("nil reader accepted")
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			if _, err := tc.new(ctx, nil); !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+			if _, err := tc.new(t.Context(), reader(t, values{tc.name: values{"timeout": "0s"}})); err == nil {
+				t.Fatal("invalid config accepted")
+			}
+		})
+	}
+}
+
+func TestSQLPoolsAreLazyAndCloseOnStartupFailure(t *testing.T) {
+	my, err := mysql.New(t.Context(), reader(t, values{"mysql": values{"dsn": "tcp(127.0.0.1:1)/application"}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = my.Stop(context.Background()) })
+	pg, err := postgres.New(t.Context(), reader(t, values{"postgres": values{"dsn": "postgres://127.0.0.1:1/application?sslmode=disable"}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = pg.Stop(context.Background()) })
+	if my.DB.Stats().OpenConnections != 0 || pg.DB.Stats().OpenConnections != 0 {
+		t.Fatal("construction connected")
+	}
+	if my.DB.Stats().MaxOpenConnections != 20 || pg.DB.Stats().MaxOpenConnections != 20 {
+		t.Fatal("pool limit not applied")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	for _, r := range []resource{my, pg} {
+		if err := r.Start(ctx); !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+		if err := r.Check(t.Context()); err == nil {
+			t.Fatal("failed startup kept pool open")
+		}
+		if err := r.Stop(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestSQLValidationAndSecretRedaction(t *testing.T) {
+	for _, tc := range []struct{ name, dsn string }{
+		{"mysql", "private-password@tcp(bad"},
+		{"postgres", "postgres://user:private-password@%zz/db"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			check := func(data values) error {
+				if tc.name == "mysql" {
+					_, err := mysql.New(t.Context(), reader(t, data))
+					return err
+				}
+				_, err := postgres.New(t.Context(), reader(t, data))
+				return err
+			}
+			if err := check(values{}); err == nil {
+				t.Fatal("empty DSN accepted")
+			}
+			if err := check(values{tc.name: values{"dsn": tc.dsn}}); err == nil || strings.Contains(err.Error(), "private-password") {
+				t.Fatal(err)
+			}
+			if err := check(values{tc.name: values{"dsn": "unused", "max_idle_conns": 21}}); err == nil {
+				t.Fatal("invalid pool accepted")
+			}
+		})
+	}
+}
+
+func TestKafkaLifecycle(t *testing.T) {
+	cluster, err := kfake.NewCluster(kfake.NumBrokers(2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cluster.Close)
+	// Env supplies strings, while YAML supplies lists. Both must accept broker addresses.
+	r, err := kafka.New(t.Context(), reader(t, values{"kafka": values{"brokers": strings.Join(cluster.ListenAddrs(), ","), "timeout": "2s"}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = r.Stop(context.Background()) })
+	if err := r.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Check(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Stop(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Stop(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Check(t.Context()); err == nil {
+		t.Fatal("closed client ready")
+	}
+}
+
+func TestNATSLifecycle(t *testing.T) {
+	srv, err := server.NewServer(&server.Options{Host: "127.0.0.1", Port: -1, JetStream: true, StoreDir: t.TempDir(), NoLog: true, NoSigs: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { srv.Shutdown(); srv.WaitForShutdown() })
+	go srv.Start()
+	if !srv.ReadyForConnections(10 * time.Second) {
+		t.Fatal("server not ready")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	r, err := nats.New(ctx, reader(t, values{"nats": values{"url": srv.ClientURL(), "timeout": "2s"}}))
+	cancel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = r.Stop(context.Background()) })
+	if err := r.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Check(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Stop(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Stop(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Check(t.Context()); err == nil {
+		t.Fatal("closed connection ready")
+	}
+}
+
+func TestNestedEnvironmentSnapshot(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("APP_TOKEN", strings.Repeat("a", 32))
+	t.Setenv("APP_MYSQL__DSN", "tcp(127.0.0.1:1)/fromenv")
+	t.Setenv("APP_MYSQL__MAX_OPEN_CONNS", "12")
+	cfg, err := config.Load(t.Context(), "test", nil, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := mysql.New(t.Context(), cfg.Values)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = r.Stop(context.Background()) }()
+	if r.DB.Stats().MaxOpenConnections != 12 {
+		t.Fatal("nested environment settings were lost")
+	}
+}

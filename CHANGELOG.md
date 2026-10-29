@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add opt-in MySQL, PostgreSQL, Kafka and NATS infrastructure through --with and
+  add infrastructure. Generate native SQL pools/contrib brokers, configuration,
+  bounded startup/readiness and explicit app.go lifecycle wiring. Keep generation
+  offline; resolve optional dependencies with an explicit go mod tidy. Later additions
+  preserve app/config/go.sum and update only necessary go.mod requirements.
+
 - Use readable console text and separate JSON file encoding with timestamps,
   uppercase levels and caller locations. Preserve structured fields, support
   log_file/APP_LOG_FILE/--log-file and rotate optional files with lumberjack.

@@ -107,6 +107,27 @@ Agent integration supplies model configuration and a bounded runner, not an
 assistant application. Keep tools and authorization application-owned. Endpoint
 selection must come from trusted startup configuration, never request input.
 
+## Optional infrastructure
+
+`--with mysql,postgres,kafka,nats` deliberately opts into backend constructors and
+configuration. Keep native SQL pools and contrib brokers in infrastructure, inject
+consumer-owned business ports explicitly, and construct resources in app.go before
+listeners. Config.Values retains the Viper Reader snapshot. Startup/readiness are
+bounded; composition roots release constructed resources even if startup fails.
+Generate no migrations, tables, topics, streams, consumers or containers.
+
+`add infrastructure` creates source/config.example.yaml and updates go.mod requirements
+offline, preserving higher versions, comments, file permissions and existing assembly,
+configuration and go.sum. Publish go.mod last under the shared project lock; roll back
+new outputs on normal failures. Generation never resolves dependencies: run explicit
+tidy before optional infrastructure checks. Adding services inherits backend packages;
+reject older configurations without Config.Values before writing any service files.
+
+Acceptance covers sixteen selections at the filesystem boundary, each backend's
+compiled standalone output, both layouts with all backends, and their extended forms.
+Test-only embedded NATS and kfake dependencies belong in temporary acceptance projects,
+never in the CLI or normal generated application. Real databases are a separate check.
+
 ## Tests and contracts
 
 A CLI build does not check embedded `.tmpl` sources. Test all twelve layout/agent/transport

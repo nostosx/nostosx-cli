@@ -24,6 +24,45 @@ func TestTemplateGates(t *testing.T) {
 		extendProject(t, cli, source, project)
 		runProject(t, project, "task", gate)
 	})
+	forInfrastructureVariants(t, cli, source, func(t *testing.T, project string) {
+		runProject(t, project, "task", gate)
+		extendProject(t, cli, source, project)
+		runProject(t, project, "task", gate)
+	})
+}
+
+// Cover each backend independently and all backends together in both layouts.
+// Optional dependencies are resolved explicitly after offline generation.
+func forInfrastructureVariants(t *testing.T, cli, source string, check func(*testing.T, string)) {
+	t.Helper()
+	for _, variant := range []struct{ name, layout, transport, features string }{
+		{"mysql", "monolith", "http", "mysql"},
+		{"postgres", "monolith", "http", "postgres"},
+		{"kafka", "monolith", "http", "kafka"},
+		{"nats", "monolith", "http", "nats"},
+		{"all-monolith", "monolith", "grpc", "agentx,mysql,postgres,kafka,nats"},
+		{"all-microservices", "microservices", "http,grpc", "agentx"},
+	} {
+		t.Run("infrastructure/"+variant.name, func(t *testing.T) {
+			project := filepath.Join(t.TempDir(), "workspace")
+			runProject(t, source, cli, "new", "workspace", "--module", "x.dev/s", "--layout", variant.layout, "--transport", variant.transport, "--with", variant.features, "--output", project)
+			if variant.name == "all-microservices" {
+				for _, feature := range []string{"mysql", "postgresql", "kafka", "nats"} {
+					runProject(t, source, cli, "add", "infrastructure", feature, "--dir", project)
+				}
+			}
+			if variant.name == "all-monolith" {
+				fixture, err := os.ReadFile("testdata/infrastructure/lifecycle.go.txt")
+				if err != nil {
+					t.Fatal(err)
+				}
+				write(t, filepath.Join(project, "infrastructure/lifecycle_test.go"), string(fixture))
+				runProject(t, project, goExecutable(), "get", "github.com/nats-io/nats-server/v2@v2.15.1", "github.com/twmb/franz-go/pkg/kfake@v0.0.0-20261020234411-c06330b92452")
+			}
+			runProject(t, project, goExecutable(), "mod", "tidy")
+			check(t, project)
+		})
+	}
 }
 
 func buildCLI(t *testing.T) (string, string) {

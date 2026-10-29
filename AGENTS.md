@@ -7,6 +7,13 @@ GOWORK=off; load relevant Go CLI, layout and testing skills when available.
   Runnable library examples belong to agentx-examples and servex-examples.
 - Default output is a clean skeleton: no business contexts, database, migrations,
   placeholder APIs, architecture-test package or project metadata file.
+- --with mysql,postgres,kafka,nats opts into constructors/configuration and pinned
+  backend dependencies. Keep drivers in infrastructure; core and business ports stay
+  independent. Config.Values carries the accepted Reader snapshot. Assemble resources
+  before transport hooks with bounded startup/readiness and caller-owned cleanup.
+  add infrastructure adds source/config.example.yaml and only necessary go.mod requirements;
+  preserve app/config/go.sum, comments and higher versions. Users run go mod tidy explicitly.
+  Provision no tables, migrations, topics, streams, consumers or containers.
 - Generated projects contain no AGENTS, CONTRIBUTING, README, CHANGELOG, SECURITY
   or LICENSE files; documentation and licensing belong to the application owner.
 - Both layouts use one module. Monolith adds root app.go and cmd/server; microservices starts
@@ -40,6 +47,8 @@ GOWORK=off; load relevant Go CLI, layout and testing skills when available.
   fetching modules or writing files. Its JSON stdout must stay machine-readable.
 - Run task check INTEGRATION=true, lint and vulncheck.
   Verify pristine and extended forms of all twelve layout/agent/transport variants without sibling replaces.
+  Cover each optional backend and all four together in both layouts after explicit tidy,
+  with isolated loopback messaging fixtures in CLI acceptance only.
 - Do not initialize Git, commit, push, tag or publish unless explicitly requested.
 
 Contracts: api/proto/<context>/v1/; output: api/gen/go/; HTTP bindings:
