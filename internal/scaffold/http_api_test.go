@@ -208,7 +208,7 @@ func TestGeneratedTransportDependencies(t *testing.T) {
 					if strings.Contains(files["go.mod"], "github.com/nostosx/servex-contrib/encoding/json v1.0.0 // indirect") != wantHTTP {
 						t.Fatal("JSON dependency does not match enabled transports")
 					}
-					if !strings.Contains(files["go.mod"], "github.com/nostosx/servex-contrib/selector v1.1.0 // indirect") {
+					if !strings.Contains(files["go.mod"], "github.com/nostosx/servex-contrib/selector v1.2.0 // indirect") {
 						t.Fatal("transport selector dependency is missing")
 					}
 					if !strings.Contains(files["go.mod"], "github.com/nostosx/servex-contrib/transport/client v1.0.0 // indirect") {
