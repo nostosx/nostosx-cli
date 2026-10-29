@@ -1,79 +1,42 @@
-[[if .GRPC]][[if .Agent]]module [[.Module]]
+module [[.Module]]
 
 go 1.27.3
 
 require (
-	github.com/nostosx/agentx v1.2.1
+[[if .Agent]]	github.com/nostosx/agentx v1.2.1
 	github.com/nostosx/agentx-contrib/provider v1.2.0
-	github.com/nostosx/servex v1.3.0
-	github.com/nostosx/servex-contrib/transport/grpcx v1.2.0
-[[if .HTTP]]	github.com/nostosx/servex-contrib/transport/httpx v1.0.0
-[[end]]	google.golang.org/grpc v1.84.0
+[[end]]	github.com/nostosx/servex v1.3.0
+	github.com/nostosx/servex-contrib/config/viper v1.0.0
+	github.com/nostosx/servex-contrib/logger/zap v1.0.0
+[[if .GRPC]]	github.com/nostosx/servex-contrib/transport/grpcx v1.2.0
+[[end]][[if .HTTP]]	github.com/nostosx/servex-contrib/transport/httpx v1.0.0
+[[end]]	go.uber.org/zap v1.27.0
+[[if .GRPC]]	google.golang.org/grpc v1.84.0
+[[end]]	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/nostosx/kitx v1.0.0 // indirect
 [[if .HTTP]]	github.com/nostosx/servex-contrib/encoding/json v1.0.0 // indirect
 [[end]]	github.com/nostosx/servex-contrib/selector v1.1.0 // indirect
 	github.com/nostosx/servex-contrib/transport/client v1.0.0 // indirect
-	golang.org/x/net v0.60.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
+	github.com/sagikazarmark/locafero v0.11.0 // indirect
+	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
+	github.com/spf13/afero v1.15.0 // indirect
+	github.com/spf13/cast v1.10.0 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/spf13/viper v1.21.0 // indirect
+	github.com/subosito/gotenv v1.6.0 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
+[[if .GRPC]]	golang.org/x/net v0.60.0 // indirect
+[[end]][[if (not .GRPC)]]	golang.org/x/sys v0.29.0 // indirect
+[[end]][[if .GRPC]]	golang.org/x/sys v0.48.0 // indirect
+[[end]][[if (not .GRPC)]]	golang.org/x/text v0.28.0 // indirect
+[[end]][[if .GRPC]]	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
-)
-[[else]]module [[.Module]]
-
-go 1.27.3
-
-require (
-	github.com/nostosx/servex v1.3.0
-	github.com/nostosx/servex-contrib/transport/grpcx v1.2.0
-[[if .HTTP]]	github.com/nostosx/servex-contrib/transport/httpx v1.0.0
-[[end]]	google.golang.org/grpc v1.84.0
-)
-
-require (
-	github.com/nostosx/kitx v1.0.0 // indirect
-[[if .HTTP]]	github.com/nostosx/servex-contrib/encoding/json v1.0.0 // indirect
-[[end]]	github.com/nostosx/servex-contrib/selector v1.1.0 // indirect
-	github.com/nostosx/servex-contrib/transport/client v1.0.0 // indirect
-	golang.org/x/net v0.60.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
-	google.golang.org/protobuf v1.36.12 // indirect
-)
-[[end]][[else]][[if .Agent]]module [[.Module]]
-
-go 1.27.3
-
-require (
-	github.com/nostosx/agentx v1.2.1
-	github.com/nostosx/agentx-contrib/provider v1.2.0
-	github.com/nostosx/servex v1.3.0
-[[if .HTTP]]	github.com/nostosx/servex-contrib/transport/httpx v1.0.0
 [[end]])
-
-require (
-	github.com/nostosx/kitx v1.0.0 // indirect
-	github.com/nostosx/servex-contrib/encoding/json v1.0.0 // indirect
-	github.com/nostosx/servex-contrib/selector v1.1.0 // indirect
-	github.com/nostosx/servex-contrib/transport/client v1.0.0 // indirect
-)
-[[else]]module [[.Module]]
-
-go 1.27.3
-
-require (
-	github.com/nostosx/servex v1.3.0
-	github.com/nostosx/servex-contrib/transport/httpx v1.0.0
-)
-
-require (
-	github.com/nostosx/kitx v1.0.0 // indirect
-	github.com/nostosx/servex-contrib/encoding/json v1.0.0 // indirect
-	github.com/nostosx/servex-contrib/selector v1.1.0 // indirect
-	github.com/nostosx/servex-contrib/transport/client v1.0.0 // indirect
-)
-[[end]][[end]]

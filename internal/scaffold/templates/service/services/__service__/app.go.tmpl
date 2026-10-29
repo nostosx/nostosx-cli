@@ -3,6 +3,7 @@ package [[.Service]]
 
 import (
  "context"
+ "errors"
  "time"
 
  "github.com/nostosx/servex/app"
@@ -11,6 +12,7 @@ import (
  [[if .GRPC]]"google.golang.org/grpc"[[end]]
 
  "[[.Module]]/infrastructure/config"
+ "[[.Module]]/infrastructure/logging"
  "[[.Module]]/infrastructure/server"
  [[if .HTTP]]httpport "[[.Module]]/services/[[.Service]]/internal/port/http"[[end]]
  [[if .GRPC]]
@@ -19,13 +21,17 @@ import (
 )
 
 // Run assembles this service and owns its transport lifecycle.
-func Run(ctx context.Context, cfg config.Config) error {
+func Run(ctx context.Context, cfg config.Config) (err error) {
+ if err := ctx.Err(); err != nil { return err }
+ log, closeLog, err := logging.New(cfg.LogLevel, nil, cfg.LogFile)
+ if err != nil { return err }
+ defer func() { err = errors.Join(err, closeLog()) }()
  var application *app.App
  check := health.CheckerFunc(func(ctx context.Context) error { return application.Check(ctx) })
- servers, err := server.New(ctx, cfg, check)
+ servers, err := server.New(ctx, cfg, check, log)
  if err != nil { return err }
  Register([[if .HTTP]]servers.HTTP[[end]][[if and .HTTP .GRPC]], [[end]][[if .GRPC]]servers.GRPC[[end]])
- application = app.New(app.WithHooks([[if .HTTP]]servers.HTTP[[end]][[if and .HTTP .GRPC]], [[end]][[if .GRPC]]servers.GRPC[[end]]), app.WithStopTimeout(10*time.Second))
+ application = app.New(app.WithLogger(log), app.WithHooks([[if .HTTP]]servers.HTTP[[end]][[if and .HTTP .GRPC]], [[end]][[if .GRPC]]servers.GRPC[[end]]), app.WithStopTimeout(10*time.Second))
  return application.Run(ctx)
 }
 

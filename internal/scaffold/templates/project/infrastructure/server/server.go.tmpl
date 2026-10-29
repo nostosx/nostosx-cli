@@ -8,6 +8,7 @@ import (
  [[if .GRPC]]"github.com/nostosx/servex-contrib/transport/grpcx"
  "google.golang.org/grpc"[[end]]
  "github.com/nostosx/servex/health"
+ "github.com/nostosx/servex/logger"
  [[if .HTTP]]"github.com/nostosx/servex-contrib/transport/httpx"[[end]]
 
  "[[.Module]]/infrastructure/config"
@@ -22,13 +23,13 @@ type Servers struct {
 
 // New validates configuration and constructs transports. The caller mounts
 // handlers and passes the transports to app.WithHooks in explicit order.
-func New(ctx context.Context, cfg config.Config, check health.Checker) (*Servers, error) {
+func New(ctx context.Context, cfg config.Config, check health.Checker, log logger.Logger) (*Servers, error) {
  if err := ctx.Err(); err != nil { return nil, err }
  if err := cfg.Validate(); err != nil { return nil, err }
- [[if .HTTP]]http := httpx.NewServer(httpx.WithAddress(cfg.Address), httpx.WithHealth(check),
+ [[if .HTTP]]http := httpx.NewServer(httpx.WithLogger(log), httpx.WithAddress(cfg.Address), httpx.WithHealth(check),
   httpx.WithReadHeaderTimeout(5*time.Second), httpx.WithReadTimeout(10*time.Second),
   httpx.WithWriteTimeout([[if .Agent]]0[[else]]10*time.Second[[end]]), httpx.WithIdleTimeout(time.Minute), httpx.WithMaxHeaderBytes(16<<10))[[end]]
  [[if .GRPC]]rpcServer := grpcx.NewServer(grpcx.WithAddress(cfg.GRPCAddress), grpcx.WithHealth(check),
-  grpcx.WithGRPCOptions(grpc.ChainUnaryInterceptor(rpc.Authenticate(cfg.Token)), grpc.ChainStreamInterceptor(rpc.AuthenticateStream(cfg.Token)), grpc.MaxRecvMsgSize(rpc.MaxMessageBytes), grpc.MaxSendMsgSize(rpc.MaxMessageBytes)))
+  grpcx.WithGRPCOptions(grpc.ChainUnaryInterceptor(rpc.Authenticate(cfg.Token, log)), grpc.ChainStreamInterceptor(rpc.AuthenticateStream(cfg.Token, log)), grpc.MaxRecvMsgSize(rpc.MaxMessageBytes), grpc.MaxSendMsgSize(rpc.MaxMessageBytes)))
  [[end]]return &Servers{[[if .HTTP]]HTTP: http,[[end]][[if .GRPC]]GRPC: rpcServer,[[end]]}, nil
 }

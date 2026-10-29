@@ -74,7 +74,7 @@ func TestNewLayouts(t *testing.T) {
 							}
 						}
 					}
-					for _, name := range []string{"infrastructure/config/config.go", "infrastructure/server/server.go", "Taskfile.yml"} {
+					for _, name := range []string{"infrastructure/config/config.go", "infrastructure/server/server.go", "infrastructure/logging/logging.go", "config.yaml", "Taskfile.yml"} {
 						if _, ok := files[name]; !ok {
 							t.Errorf("missing generated file %s", name)
 						}

@@ -24,7 +24,7 @@ func TestListenersAndGracefulShutdown(t *testing.T) {
 	cfg := testConfig()
 	var application *app.App
  check := health.CheckerFunc(func(ctx context.Context) error { return application.Check(ctx) })
- servers, err := New(t.Context(), cfg, check)
+ servers, err := New(t.Context(), cfg, check, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,70 @@
+// Package logging constructs console and file outputs for the default Zap logger.
+package logging
+
+import (
+ "context"
+ "errors"
+ "fmt"
+ "io"
+ "os"
+ "path/filepath"
+
+ zapadapter "github.com/nostosx/servex-contrib/logger/zap"
+ "github.com/nostosx/servex/logger"
+ "go.uber.org/zap"
+ "go.uber.org/zap/zapcore"
+ "gopkg.in/natefinch/lumberjack.v2"
+)
+
+// New writes readable text to the console and optional JSON to a rotating file.
+// Nil console selects stderr; an empty filePath disables file output.
+// The caller calls close after transports and application resources have stopped.
+func New(level string, console io.Writer, filePath string) (logger.Logger, func() error, error) {
+ severity := zap.NewAtomicLevelAt(zap.InfoLevel)
+ if level != "" {
+  if err := severity.UnmarshalText([]byte(level)); err != nil { return nil, nil, err }
+ }
+ if console == nil { console = os.Stderr }
+ // Standard streams are unbuffered; fsync on terminals/pipes is not portable.
+ if console == os.Stderr || console == os.Stdout { console = streamWriter{console} }
+ sink := zapcore.Lock(zapcore.AddSync(console))
+
+ fileEncoder := zap.NewProductionEncoderConfig()
+ fileEncoder.TimeKey = "timestamp"
+ fileEncoder.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")
+ fileEncoder.EncodeLevel = zapcore.CapitalLevelEncoder
+ consoleEncoder := fileEncoder
+ consoleEncoder.EncodeDuration = zapcore.StringDurationEncoder
+ cores := []zapcore.Core{zapcore.NewCore(newTextEncoder(consoleEncoder), sink, severity)}
+
+ var rolling *lumberjack.Logger
+ if filePath != "" {
+  if err := os.MkdirAll(filepath.Dir(filePath), 0o750); err != nil { return nil, nil, err }
+  // Fail at startup for an unwritable destination instead of losing later records.
+  file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+  if err != nil { return nil, nil, err }
+  if err := file.Close(); err != nil { return nil, nil, err }
+  rolling = &lumberjack.Logger{Filename: filePath, MaxSize: 100, MaxBackups: 5, MaxAge: 7, Compress: true}
+  cores = append(cores, zapcore.NewCore(zapcore.NewJSONEncoder(fileEncoder), zapcore.AddSync(rolling), severity))
+ }
+ backend := zap.New(zapcore.NewTee(cores...), zap.ErrorOutput(sink), zap.AddCaller(), zap.AddCallerSkip(1))
+ close := func() error {
+  err := backend.Sync()
+  if rolling != nil { err = errors.Join(err, rolling.Close()) }
+  return err
+ }
+ return zapadapter.New(backend), close, nil
+}
+
+type streamWriter struct { io.Writer }
+
+// Report writes a terminal startup/runtime error before process exit.
+func Report(err error) {
+ log, close, initErr := New("error", nil, "")
+ if initErr != nil {
+  fmt.Fprintln(os.Stderr, errors.Join(err, initErr))
+  return
+ }
+ log.Log(context.Background(), logger.LevelError, "application stopped", "error", err)
+ if err := close(); err != nil { fmt.Fprintln(os.Stderr, err) }
+}
