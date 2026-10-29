@@ -18,7 +18,7 @@ func newAddCommand() *cobra.Command {
 				if err := scaffold.Add(cmd.Context(), dir, kind, args[0]); err != nil {
 					return err
 				}
-				_, err := fmt.Fprintf(cmd.OutOrStdout(), "Added %s %s. Services inherit project transports. See README.md for explicit assembly; only Proto services require task api ACTION=generate and go mod tidy.\n", kind, args[0])
+				_, err := fmt.Fprintf(cmd.OutOrStdout(), "Added %s %s. Services inherit project transports. Mount services explicitly in app.go; only Proto services require task api ACTION=generate and go mod tidy.\n", kind, args[0])
 				return err
 			},
 		}

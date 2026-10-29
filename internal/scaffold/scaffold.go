@@ -286,7 +286,7 @@ func render(group string, d data) (map[string][]byte, error) {
 			if d.Layout == "monolith" && strings.HasPrefix(rel, "services/") && strings.Contains(rel, "/cmd/") {
 				return nil
 			}
-			if d.Layout == "microservices" && strings.HasPrefix(rel, "cmd/server/") {
+			if d.Layout == "microservices" && (rel == "app.go" || strings.HasPrefix(rel, "cmd/server/")) {
 				return nil
 			}
 		}

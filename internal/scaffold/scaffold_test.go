@@ -55,61 +55,78 @@ func TestNewLayouts(t *testing.T) {
 	t.Parallel()
 	for _, layout := range []string{"monolith", "microservices"} {
 		for _, agent := range []bool{false, true} {
-			t.Run(layout+map[bool]string{true: "/agentx", false: "/business"}[agent], func(t *testing.T) {
-				t.Parallel()
-				o := options(t)
-				o.Layout, o.Agent = layout, agent
-				if _, err := scaffold.New(t.Context(), o); err != nil {
-					t.Fatal(err)
-				}
-				files := snapshot(t, o.Output)
-				for name := range files {
-					if strings.HasPrefix(name, "domain/") || strings.HasPrefix(name, "application/") || strings.HasPrefix(name, "services/") || strings.HasPrefix(name, "api/proto/") || strings.HasPrefix(name, "api/gen/") {
-						t.Errorf("new project includes an unsolicited context or contract: %s", name)
+			for _, transport := range []string{"http", "grpc", "http,grpc"} {
+				t.Run(layout+map[bool]string{true: "/agentx/", false: "/business/"}[agent]+transport, func(t *testing.T) {
+					t.Parallel()
+					o := options(t)
+					o.Layout, o.Agent, o.Transport = layout, agent, transport
+					if _, err := scaffold.New(t.Context(), o); err != nil {
+						t.Fatal(err)
 					}
-					for _, forbidden := range []string{"catalog", "inventory", "archtest", ".nostosx.json", "get_status", "database/", "cmd/migrate/", "scripts/", "apigen", "Makefile", "bootstrap"} {
-						if strings.Contains(name, forbidden) {
-							t.Errorf("unexpected generated path %s", name)
+					files := snapshot(t, o.Output)
+					for name := range files {
+						if strings.HasPrefix(name, "domain/") || strings.HasPrefix(name, "application/") || strings.HasPrefix(name, "services/") || strings.HasPrefix(name, "api/proto/") || strings.HasPrefix(name, "api/gen/") {
+							t.Errorf("new project includes an unsolicited context or contract: %s", name)
+						}
+						for _, forbidden := range []string{"catalog", "inventory", "archtest", ".nostosx.json", "get_status", "database/", "cmd/migrate/", "scripts/", "apigen", "Makefile", "bootstrap"} {
+							if strings.Contains(name, forbidden) {
+								t.Errorf("unexpected generated path %s", name)
+							}
 						}
 					}
-				}
-				for _, name := range []string{"infrastructure/config/config.go", "infrastructure/server/server.go", "Taskfile.yml", "README.zh-CN.md"} {
-					if _, ok := files[name]; !ok {
-						t.Errorf("missing generated file %s", name)
-					}
-				}
-				for name, content := range files {
-					if (strings.HasSuffix(name, ".go") && strings.Contains(content, "github.com/nostosx/nostosx-cli")) || strings.Contains(content, "[[.Module]]") {
-						t.Fatalf("unrendered module in %s", name)
-					}
-					if strings.HasSuffix(name, ".go") {
-						if strings.Contains(content, "RunCLI") {
-							t.Fatalf("generated command still delegates process startup in %s", name)
-						}
-						if _, err := parser.ParseFile(token.NewFileSet(), name, content, parser.AllErrors); err != nil {
-							t.Fatal(err)
-						}
-						if !agent && strings.Contains(content, "github.com/nostosx/agentx") {
-							t.Fatalf("agentx leaked into %s", name)
+					for _, name := range []string{"infrastructure/config/config.go", "infrastructure/server/server.go", "Taskfile.yml"} {
+						if _, ok := files[name]; !ok {
+							t.Errorf("missing generated file %s", name)
 						}
 					}
-				}
-				_, combined := files["cmd/server/main.go"]
-				_, agentRunner := files["infrastructure/agent/runner.go"]
-				if combined != (layout == "monolith") || agentRunner != agent {
-					t.Fatal("incorrect topology or optional feature")
-				}
-				if strings.Contains(files["go.mod"], "agentx") != agent {
-					t.Fatal("incorrect agent dependency")
-				}
-				o.Output = filepath.Join(t.TempDir(), "second")
-				if _, err := scaffold.New(t.Context(), o); err != nil {
-					t.Fatal(err)
-				}
-				if !reflect.DeepEqual(files, snapshot(t, o.Output)) {
-					t.Fatal("generation is not reproducible")
-				}
-			})
+					for _, name := range []string{"AGENTS.md", "CONTRIBUTING.md", "README.md", "README.zh-CN.md", "CHANGELOG.md", "SECURITY.md", "LICENSE"} {
+						if _, ok := files[name]; ok {
+							t.Errorf("unsolicited generated document %s", name)
+						}
+					}
+					for name, content := range files {
+						if (strings.HasSuffix(name, ".go") && strings.Contains(content, "github.com/nostosx/nostosx-cli")) || strings.Contains(content, "[[.Module]]") {
+							t.Fatalf("unrendered module in %s", name)
+						}
+						if strings.HasSuffix(name, ".go") {
+							if strings.Contains(content, "RunCLI") {
+								t.Fatalf("generated command still delegates process startup in %s", name)
+							}
+							if _, err := parser.ParseFile(token.NewFileSet(), name, content, parser.AllErrors); err != nil {
+								t.Fatal(err)
+							}
+							if !agent && strings.Contains(content, "github.com/nostosx/agentx") {
+								t.Fatalf("agentx leaked into %s", name)
+							}
+						}
+					}
+					_, combined := files["cmd/server/main.go"]
+					_, composition := files["app.go"]
+					if composition != combined {
+						t.Fatal("monolith entry and app.go must be generated together")
+					}
+					if combined {
+						entry := files["cmd/server/main.go"]
+						if !strings.Contains(entry, "application.Run(ctx, cfg)") || strings.Contains(entry, "/infrastructure/server") || strings.Contains(entry, "app.New(") {
+							t.Fatal("monolith entry must delegate assembly to app.go")
+						}
+					}
+					_, agentRunner := files["infrastructure/agent/runner.go"]
+					if combined != (layout == "monolith") || agentRunner != agent {
+						t.Fatal("incorrect topology or optional feature")
+					}
+					if strings.Contains(files["go.mod"], "agentx") != agent {
+						t.Fatal("incorrect agent dependency")
+					}
+					o.Output = filepath.Join(t.TempDir(), "second")
+					if _, err := scaffold.New(t.Context(), o); err != nil {
+						t.Fatal(err)
+					}
+					if !reflect.DeepEqual(files, snapshot(t, o.Output)) {
+						t.Fatal("generation is not reproducible")
+					}
+				})
+			}
 		}
 	}
 }
