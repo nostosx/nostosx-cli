@@ -1,0 +1,73 @@
+// Package nats constructs a NATS connection and the contrib JetStream adapter.
+package nats
+
+import (
+ "context"
+ "errors"
+ "net"
+ "sync/atomic"
+ "time"
+
+ natsgo "github.com/nats-io/nats.go"
+ "github.com/nats-io/nats.go/jetstream"
+ natsadapter "github.com/nostosx/servex-contrib/broker/nats"
+ sxconfig "github.com/nostosx/servex/config"
+)
+
+type Config struct {
+ URL string `json:"url"`
+ Name string `json:"name"`
+ Timeout time.Duration `json:"timeout"`
+}
+
+// Resource owns the connection. Streams and subjects are provisioned explicitly.
+type Resource struct {
+ Broker *natsadapter.Broker
+ connection *natsgo.Conn
+ stream jetstream.JetStream
+ timeout time.Duration
+}
+
+func New(ctx context.Context, reader sxconfig.Reader) (*Resource, error) {
+ if err := ctx.Err(); err != nil { return nil, err }
+ if reader == nil { return nil, errors.New("nats configuration reader is required") }
+ cfg := Config{URL: natsgo.DefaultURL, Name: "workspace", Timeout: 5*time.Second}
+ if err := reader.Unmarshal("nats", &cfg); err != nil { return nil, err }
+ if cfg.URL == "" || cfg.Timeout <= 0 { return nil, errors.New("nats requires a URL and a positive timeout") }
+ connectCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
+ defer cancel()
+ dialer := &contextDialer{timeout: cfg.Timeout}
+ dialer.initial.Store(&connectCtx)
+ connection, err := natsgo.Connect(cfg.URL, natsgo.Name(cfg.Name), natsgo.Timeout(cfg.Timeout), natsgo.SetCustomDialer(dialer))
+ dialer.initial.Store(nil)
+ if err != nil { return nil, err }
+ if err := connectCtx.Err(); err != nil { connection.Close(); return nil, err }
+ stream, err := jetstream.New(connection)
+ if err != nil { connection.Close(); return nil, err }
+ return &Resource{Broker: natsadapter.New(stream), connection: connection, stream: stream, timeout: cfg.Timeout}, nil
+}
+
+// The context applies only to initial connection establishment; reconnects use
+// the NATS connection's own lifetime and must not retain the startup deadline.
+type contextDialer struct {
+ initial atomic.Pointer[context.Context]
+ timeout time.Duration
+}
+func (d *contextDialer) Dial(network, address string) (net.Conn, error) {
+ ctx := context.Background()
+ if initial := d.initial.Load(); initial != nil { ctx = *initial }
+ return (&net.Dialer{Timeout: d.timeout}).DialContext(ctx, network, address)
+}
+
+func (*Resource) Name() string { return "nats" }
+func (r *Resource) Start(ctx context.Context) error {
+ if err := r.Check(ctx); err != nil { r.connection.Close(); return err }
+ return nil
+}
+func (r *Resource) Check(ctx context.Context) error {
+ ctx, cancel := context.WithTimeout(ctx, r.timeout)
+ defer cancel()
+ _, err := r.stream.AccountInfo(ctx)
+ return err
+}
+func (r *Resource) Stop(context.Context) error { r.connection.Close(); return nil }

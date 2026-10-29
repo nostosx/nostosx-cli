@@ -1,0 +1,64 @@
+// Package kafka constructs a Kafka client and the contrib broker adapter.
+package kafka
+
+import (
+ "context"
+ "errors"
+ "slices"
+ "strings"
+ "time"
+
+ "github.com/twmb/franz-go/pkg/kgo"
+ kafkaadapter "github.com/nostosx/servex-contrib/broker/kafka"
+ sxconfig "github.com/nostosx/servex/config"
+)
+
+type Config struct {
+ Brokers []string `json:"brokers"`
+ ClientID string `json:"client_id"`
+ Timeout time.Duration `json:"timeout"`
+}
+
+// Resource owns the client; its Broker is injected into publishers or consumers.
+type Resource struct {
+ Broker *kafkaadapter.Broker
+ client *kgo.Client
+ timeout time.Duration
+}
+
+// New constructs clients without connecting. Topics and consumers are application-owned.
+func New(ctx context.Context, reader sxconfig.Reader) (*Resource, error) {
+ if err := ctx.Err(); err != nil { return nil, err }
+ if reader == nil { return nil, errors.New("kafka configuration reader is required") }
+ cfg := Config{Brokers: []string{"127.0.0.1:9092"}, ClientID: "workspace", Timeout: 5*time.Second}
+ if err := reader.Unmarshal("kafka", &cfg); err != nil { return nil, err }
+ var brokers []string
+ for _, group := range cfg.Brokers {
+  for address := range strings.SplitSeq(group, ",") { brokers = append(brokers, strings.TrimSpace(address)) }
+ }
+ cfg.Brokers = brokers
+ if len(cfg.Brokers) == 0 || cfg.Timeout <= 0 { return nil, errors.New("kafka requires brokers and a positive timeout") }
+ if slices.Contains(cfg.Brokers, "") { return nil, errors.New("kafka broker must not be empty") }
+ client, err := kgo.NewClient(kgo.SeedBrokers(cfg.Brokers...), kgo.ClientID(cfg.ClientID))
+ if err != nil { return nil, err }
+ return &Resource{Broker: kafkaadapter.NewFromClient(client), client: client, timeout: cfg.Timeout}, nil
+}
+
+func (*Resource) Name() string { return "kafka" }
+
+func (r *Resource) Start(ctx context.Context) error {
+ if err := r.Check(ctx); err != nil { _ = r.Stop(context.WithoutCancel(ctx)); return err }
+ return nil
+}
+
+func (r *Resource) Check(ctx context.Context) error {
+ ctx, cancel := context.WithTimeout(ctx, r.timeout)
+ defer cancel()
+ return r.client.Ping(ctx)
+}
+
+func (r *Resource) Stop(context.Context) error {
+ err := r.Broker.Close()
+ r.client.Close()
+ return err
+}

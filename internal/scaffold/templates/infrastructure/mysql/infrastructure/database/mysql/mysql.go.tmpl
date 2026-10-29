@@ -1,0 +1,65 @@
+// Package mysql constructs a caller-owned SQL connection pool.
+package mysql
+
+import (
+ "context"
+ "database/sql"
+ "errors"
+ "time"
+
+ "github.com/go-sql-driver/mysql"
+ database "github.com/nostosx/servex-contrib/database/sql"
+ sxconfig "github.com/nostosx/servex/config"
+)
+
+// Config contains connection settings; supply DSN through APP_MYSQL__DSN.
+type Config struct {
+ DSN string `json:"dsn"`
+ MaxOpenConns int `json:"max_open_conns"`
+ MaxIdleConns int `json:"max_idle_conns"`
+ ConnMaxLifetime time.Duration `json:"conn_max_lifetime"`
+ ConnMaxIdleTime time.Duration `json:"conn_max_idle_time"`
+ Timeout time.Duration `json:"timeout"`
+}
+
+// Resource exposes the native pool and participates in startup, readiness and shutdown.
+type Resource struct {
+ DB *sql.DB
+ timeout time.Duration
+}
+
+// New decodes one accepted configuration snapshot. It does not connect or migrate.
+func New(ctx context.Context, reader sxconfig.Reader) (*Resource, error) {
+ if err := ctx.Err(); err != nil { return nil, err }
+ if reader == nil { return nil, errors.New("mysql configuration reader is required") }
+ cfg := Config{MaxOpenConns: 20, MaxIdleConns: 10, ConnMaxLifetime: 30*time.Minute, ConnMaxIdleTime: 5*time.Minute, Timeout: 5*time.Second}
+ if err := reader.Unmarshal("mysql", &cfg); err != nil { return nil, err }
+ if cfg.DSN == "" { return nil, errors.New("mysql.dsn is required; set APP_MYSQL__DSN") }
+ if cfg.MaxOpenConns <= 0 || cfg.MaxIdleConns < 0 || cfg.MaxIdleConns > cfg.MaxOpenConns || cfg.ConnMaxLifetime <= 0 || cfg.ConnMaxIdleTime <= 0 || cfg.Timeout <= 0 { return nil, errors.New("invalid mysql connection pool settings") }
+ parsed, err := mysql.ParseDSN(cfg.DSN)
+ if err != nil { return nil, errors.New("mysql.dsn is invalid") }
+ connector, err := mysql.NewConnector(parsed)
+ if err != nil { return nil, errors.New("mysql connector configuration is invalid") }
+ db := database.OpenDB(connector, database.WithSystem("mysql"))
+ db.SetMaxOpenConns(cfg.MaxOpenConns)
+ db.SetMaxIdleConns(cfg.MaxIdleConns)
+ db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+ db.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
+ return &Resource{DB: db, timeout: cfg.Timeout}, nil
+}
+
+func (*Resource) Name() string { return "mysql" }
+
+// Start verifies connectivity before the transports start accepting requests.
+func (r *Resource) Start(ctx context.Context) error {
+ if err := r.Check(ctx); err != nil { _ = r.DB.Close(); return err }
+ return nil
+}
+
+func (r *Resource) Check(ctx context.Context) error {
+ ctx, cancel := context.WithTimeout(ctx, r.timeout)
+ defer cancel()
+ return r.DB.PingContext(ctx)
+}
+
+func (r *Resource) Stop(context.Context) error { return r.DB.Close() }

@@ -12,6 +12,11 @@ import (
     "[[.Module]]/infrastructure/config"
  "[[.Module]]/infrastructure/logging"
     "[[.Module]]/infrastructure/server"
+[[if .MySQL]]mysqlinfra "[[.Module]]/infrastructure/database/mysql"[[end]]
+[[if .Postgres]]postgresinfra "[[.Module]]/infrastructure/database/postgres"[[end]]
+[[if .Kafka]]kafkainfra "[[.Module]]/infrastructure/messaging/kafka"[[end]]
+[[if .NATS]]natsinfra "[[.Module]]/infrastructure/messaging/nats"[[end]]
+
 )
 
 // Run constructs dependencies, mounts services and owns the host lifecycle.
@@ -20,11 +25,32 @@ func Run(ctx context.Context, cfg config.Config) (err error) {
  log, closeLog, err := logging.New(cfg.LogLevel, nil, cfg.LogFile)
  if err != nil { return err }
  defer func() { err = errors.Join(err, closeLog()) }()
-	var application *app.App
+	[[if .MySQL]]
+ mysqlResource, err := mysqlinfra.New(ctx, cfg.Values)
+ if err != nil { return err }
+ defer func() { err = errors.Join(err, mysqlResource.Stop(context.WithoutCancel(ctx))) }()
+[[end]]
+[[if .Postgres]]
+ postgresResource, err := postgresinfra.New(ctx, cfg.Values)
+ if err != nil { return err }
+ defer func() { err = errors.Join(err, postgresResource.Stop(context.WithoutCancel(ctx))) }()
+[[end]]
+[[if .Kafka]]
+ kafkaResource, err := kafkainfra.New(ctx, cfg.Values)
+ if err != nil { return err }
+ defer func() { err = errors.Join(err, kafkaResource.Stop(context.WithoutCancel(ctx))) }()
+[[end]]
+[[if .NATS]]
+ natsResource, err := natsinfra.New(ctx, cfg.Values)
+ if err != nil { return err }
+ defer func() { err = errors.Join(err, natsResource.Stop(context.WithoutCancel(ctx))) }()
+[[end]]
+
+ var application *app.App
 	check := health.CheckerFunc(func(ctx context.Context) error { return application.Check(ctx) })
 	servers, err := server.New(ctx, cfg, check, log)
 	if err != nil { return err }
 	// Mount added services explicitly here before starting the listeners.
-	application = app.New(app.WithLogger(log), app.WithHooks([[if .HTTP]]servers.HTTP[[end]][[if and .HTTP .GRPC]], [[end]][[if .GRPC]]servers.GRPC[[end]]), app.WithStopTimeout(10*time.Second))
+	application = app.New(app.WithLogger(log), app.WithHooks([[if .MySQL]]mysqlResource, [[end]][[if .Postgres]]postgresResource, [[end]][[if .Kafka]]kafkaResource, [[end]][[if .NATS]]natsResource, [[end]][[if .HTTP]]servers.HTTP[[end]][[if and .HTTP .GRPC]], [[end]][[if .GRPC]]servers.GRPC[[end]]), app.WithStopTimeout(10*time.Second))
 	return application.Run(ctx)
 }

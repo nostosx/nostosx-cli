@@ -17,6 +17,8 @@ import (
 
 // Config contains operator-controlled settings for enabled transports.
 type Config struct {
+ // Values pins the merged Viper snapshot for optional infrastructure constructors.
+ Values sxconfig.Reader `json:"-"`
  [[if .HTTP]]Address string `json:"address"`[[end]]
  [[if .GRPC]]GRPCAddress string `json:"grpc_address"`[[end]]
  [[if .NeedsToken]]Token string `json:"token"`[[end]]
@@ -70,6 +72,7 @@ func Load(ctx context.Context, name string, args []string, output io.Writer) (Co
  if err != nil { return Config{}, err }
  var result Config
  if err := loaded.Unmarshal("", &result); err != nil { return Config{}, err }
+ result.Values = loaded.Snapshot()
  return result, nil
 }
 

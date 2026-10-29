@@ -35,6 +35,7 @@ type Options struct {
 	Name, Module, Layout, Output string
 	Transport                    string
 	Agent                        bool
+	Infrastructure               []string
 }
 
 // HTTP and GRPC select the transports included in the generated process.
@@ -113,8 +114,15 @@ func New(ctx context.Context, o Options) (string, error) {
 	if err := o.validate(); err != nil {
 		return "", err
 	}
+	o.Infrastructure, err = normalizeInfrastructure(o.Infrastructure)
+	if err != nil {
+		return "", err
+	}
 	files, err := render("project", data{Options: o})
 	if err != nil {
+		return "", err
+	}
+	if err := addInfrastructureFiles(files, o); err != nil {
 		return "", err
 	}
 	target := o.Output
@@ -170,6 +178,10 @@ func Add(ctx context.Context, dir, kind, name string) (err error) {
 	o := Options{Module: modulePath}
 	if kind == "service" {
 		o.Transport, err = projectTransport(root)
+		if err != nil {
+			return err
+		}
+		o.Infrastructure, err = projectInfrastructure(root)
 		if err != nil {
 			return err
 		}

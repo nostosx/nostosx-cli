@@ -26,5 +26,6 @@ func newAddCommand() *cobra.Command {
 		add.AddCommand(command)
 	}
 	add.AddCommand(newAddAPICommand())
+	add.AddCommand(newAddInfrastructureCommand())
 	return add
 }
