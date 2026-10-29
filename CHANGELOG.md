@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Use readable console text and separate JSON file encoding with timestamps,
+  uppercase levels and caller locations. Preserve structured fields, support
+  log_file/APP_LOG_FILE/--log-file and rotate optional files with lumberjack.
+
+- Default generated applications to contrib Viper configuration and contrib Zap
+  console text and optional JSON file logging. Load defaults, config.yaml, environment and explicit flags in
+  order; retain API_TOKEN and allow APP_TOKEN to override it. Composition roots
+  inject the core Logger into lifecycle/HTTP/RPC paths and flush after shutdown.
+
+- Move monolith assembly into root app.go. Both monolith and standalone service
+  commands parse configuration, create a signal context and call Run(ctx, cfg).
+  Stop generating AGENTS.md, CONTRIBUTING.md, README.md, README.zh-CN.md,
+  CHANGELOG.md, SECURITY.md and LICENSE; applications own these files.
+
 - Add the unreleased servex-contrib/transport/client module required by the
   matching HTTP/gRPC backends. Refresh its actual version and checksum during
   the coordinated release.

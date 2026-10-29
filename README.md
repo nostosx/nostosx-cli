@@ -67,12 +67,44 @@ go run ./cmd/server
 In another terminal, `curl http://127.0.0.1:8080/readyz` checks readiness. Stop
 with Ctrl+C. The default server exposes only native HTTP health, without gRPC, Proto or Buf. There
 are no business routes, database, migrations, sample contexts or architecture
-test package. Follow the generated bilingual README for configuration and extension.
+test package. Project documentation and licensing are application-owned; the CLI does
+not generate AGENTS.md, CONTRIBUTING.md, README.md, README.zh-CN.md, CHANGELOG.md,
+SECURITY.md or LICENSE.
+
+Generated applications use contrib Viper for configuration and contrib Zap for
+readable console text and optional JSON file logging. `config.Load` composes sources and calls Viper;
+`app.go` constructs the logger and injects the core Logger interface.
+Configuration precedence is defaults < config file < environment < explicit flags.
+The generated `config.yaml` is loaded by default; a missing default file is allowed,
+while `--config path` requires that file. `APP_ADDRESS`, `APP_GRPC_ADDRESS`,
+`APP_LOG_LEVEL` and `APP_TOKEN` override enabled settings; `APP_TOKEN` takes
+precedence over the existing `API_TOKEN`. `--log-level` defaults to `info`.
+
+Console records render modules and fields as [Module] message [key:value],
+with [操作:…], [耗时:…], [状态:…] and [错误:…] summaries. Newlines and tabs
+in messages/fields are escaped so one event occupies one physical line.
+An explicit component selects the module; otherwise it uses the caller package.
+Console records use local timestamps in YYYY-MM-DD HH:mm:ss format, uppercase levels,
+short caller locations and readable durations. File records use one JSON object
+per line, the same second-precision local timestamps and numeric durations in seconds. Business fields
+remain separate in both outputs. Set log_file in config.yaml, APP_LOG_FILE or
+--log-file to enable JSON file output; an explicit empty --log-file disables it.
+The default is console only. Enabled files rotate at 100 MiB, retain at most five
+backups for up to seven days, and compress backups with lumberjack v2.2.1.
+Give each service process its own file path; close the logger after its users stop.
+
+HTTP listens on `127.0.0.1:8080` by default; use `-addr` to change it.
+Enabled gRPC listens on `127.0.0.1:9090`; use `-grpc-addr` to change it.
+Listeners accept literal loopback IPs. Projects with gRPC or agentx require
+`API_TOKEN` with at least 32 printable, non-whitespace ASCII characters.
+Every gRPC call, including health probes, uses `authorization: Bearer <API_TOKEN>`.
+The optional agent model constructor reads `AGENT_PROVIDER`, `AGENT_MODEL` and
+`AGENT_API`; the application explicitly constructs and mounts its agent features.
 
 | Option | Behavior |
 | --- | --- |
 | `--module` | Required lowercase Go module path owned by the application |
-| `--layout monolith` | Default; adds a runnable `cmd/server` host |
+| `--layout monolith` | Default; adds `cmd/server` and root `app.go` assembly |
 | `--layout microservices` | Repository skeleton; add services before running a process |
 | `--transport http` | Default; native HTTP without Proto, gRPC or contract CI |
 | `--transport grpc` | Only gRPC, with contract tools and authentication |
@@ -98,6 +130,11 @@ go run ./services/order/cmd/order -addr 127.0.0.1:8081
 
 Contexts only declare domain/application packages, without invented use cases or persistence.
 Services inherit enabled transports from the server constructors, adding app.go, private adapters and a standalone entry.
+Both process entries parse configuration, create a signal context and call `Run(ctx, cfg)`.
+The monolith imports the root application package; standalone entries import their service.
+Root `app.go` owns monolith assembly; `services/<name>/app.go` owns standalone assembly.
+To host a service in the monolith, explicitly call its `Register` from root `app.go`
+before `app.New`. Additions never rewrite an existing composition root.
 Default HTTP services contain no Proto and need no generation. A gRPC-enabled project adds versioned contracts;
 install Buf 1.72.0, run task api ACTION=generate and go mod tidy before building it.
 Additions read the current go.mod and server constructors without duplicate metadata, dependency edits or assembly rewrites.
@@ -244,6 +281,8 @@ additionally use `task api` for contract semantics and generated output.
 Both layouts retain the same boundaries:
 
 ```text
+app.go                              monolith Run and explicit service assembly
+config.yaml                         process configuration (Viper)
 api/proto/<context>/v1/               contracts added with a service
 api/gen/go/                          generated Go/gRPC/gateway code
 api/http/                            HTTP bindings and OpenAPI configuration
@@ -252,7 +291,8 @@ application/<context>/query/         read use cases added by the application
 domain/<context>/                    domain added by the application
 services/<name>/app.go               service Run and explicit handler mounting
 services/<name>/internal/port/rpc/    inbound transport adapters
-infrastructure/config/              flags, environment and configuration validation
+infrastructure/config/              Viper sources, typed settings and validation
+infrastructure/logging/             Zap console/file encoders, rotation and cleanup
 infrastructure/server/              HTTP/gRPC construction without startup callbacks
 infrastructure/rpc/                  authentication and safe RPC errors
 infrastructure/agent/                optional model setup and bounded execution

@@ -7,8 +7,14 @@ GOWORK=off; load relevant Go CLI, layout and testing skills when available.
   Runnable library examples belong to agentx-examples and servex-examples.
 - Default output is a clean skeleton: no business contexts, database, migrations,
   placeholder APIs, architecture-test package or project metadata file.
-- Both layouts use one module. Monolith adds cmd/server; microservices starts
+- Generated projects contain no AGENTS, CONTRIBUTING, README, CHANGELOG, SECURITY
+  or LICENSE files; documentation and licensing belong to the application owner.
+- Both layouts use one module. Monolith adds root app.go and cmd/server; microservices starts
   without services. Add contexts/services only when requested by the user.
+  Commands parse configuration and call Run; assembly belongs in root or service app.go.
+- Generated applications load defaults/file/environment/explicit flags through
+  contrib config/viper. Console text and optional JSON file logging use contrib logger/zap, injected
+  through core Logger; construct and flush it in app.go without global loggers.
 - new/add/api scaffold are offline. Never invoke Go, shell commands, Git, Buf or
   model APIs from source scaffolding. Other api commands execute trusted contract tools.
   Preserve no-overwrite behavior, root confinement, cancellation,

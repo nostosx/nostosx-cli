@@ -23,7 +23,7 @@ task vulncheck
 ```
 
 `GO`, `GOFMT`, `GOLANGCI_LINT` and `GOVULNCHECK` select executables. Generated
-Taskfiles pin CLI v1.1.0; tests override `NOSTOSX` with the binary built from
+Taskfiles pin CLI v1.2.0; tests override `NOSTOSX` with the binary built from
 this checkout. Use that override when developing the CLI or its templates.
 Generated projects resolve pinned public modules. Tests use temporary files,
 loopback listeners and local model fixtures, without Docker or paid model APIs.
@@ -64,7 +64,13 @@ exclusive additions and rollback. Read additions' module path from bounded
 `go.mod` input; do not persist duplicate metadata.
 
 The default output contains no example business, database, migration, placeholder
-service or archtest package. `add context` declares packages; `add service`
+service, archtest package or documentation/license files. Monolith commands call
+Run in root app.go; standalone commands call Run in services/<name>/app.go.
+Keep dependency construction, handler mounting and lifecycle assembly out of main.
+Use contrib Viper for configuration loading and contrib Zap for console text and optional JSON file
+logging. Keep file/env/flag precedence explicit and inject only core Logger into
+App, HTTP and RPC boundaries. Composition roots own flushing; avoid global loggers.
+`add context` declares packages; `add service`
 creates an empty Proto service and explicit assembly. It must not edit existing
 contracts, dependencies or composition roots. New features need an observable,
 necessary effect; avoid speculative configuration or abstractions.

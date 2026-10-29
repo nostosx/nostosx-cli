@@ -61,12 +61,38 @@ go run ./cmd/server
 
 在另一终端用 `curl http://127.0.0.1:8080/readyz` 检查就绪状态，Ctrl+C 停止。
 默认宿主仅提供原生 HTTP 健康检查，不包含 gRPC、Proto、Buf、业务路由、数据库、
-迁移、示例上下文或架构测试包。配置和扩展步骤见生成项目的中英文 README。
+迁移、示例上下文或架构测试包。项目文档和许可证由应用自行维护，CLI 不生成
+AGENTS.md、CONTRIBUTING.md、README.md、README.zh-CN.md、CHANGELOG.md、SECURITY.md 或 LICENSE。
+
+生成项目默认使用 contrib Viper 读取配置、contrib Zap 输出控制台文本和可选 JSON 文件日志。
+`config.Load` 只负责装配配置源并调用 Viper，`app.go` 构造 Logger 并通过核心接口注入。
+配置优先级为：默认值 < 配置文件 < 环境变量 < 显式命令行参数。
+默认读取生成的 `config.yaml`；默认文件缺失时可用默认值和环境变量启动，
+显式使用 `--config path` 时要求文件存在。`APP_ADDRESS`、`APP_GRPC_ADDRESS`、
+`APP_LOG_LEVEL`、`APP_TOKEN` 覆盖对应配置；`APP_TOKEN` 优先于原有的 `API_TOKEN`。
+`--log-level` 默认是 `info`。
+
+控制台以 [模块] 消息 [字段:值] 展示事件，常用字段显示为 [操作:…]、
+[耗时:…]、[状态:…]、[错误:…]。消息及字段中的换行、制表符转义为文本，
+每个事件只占一行；模块优先取 component，缺省使用调用者包名。
+控制台使用本地时间（格式为 2026-10-29 17:13:50）、大写级别、简短调用位置和易读耗时；
+文件每行写一个 JSON 对象，使用相同的秒级本地时间及以秒为单位的数值耗时。
+两种输出都保留独立业务字段。通过 config.yaml 的 log_file、APP_LOG_FILE
+或 --log-file 开启文件输出，显式传入空的 --log-file 可关闭文件输出。
+默认只输出控制台；启用文件后，通过 lumberjack v2.2.1 按 100 MiB 轮转，
+最多保留五个备份、七天并压缩。每个服务进程使用独立文件路径，所有使用者停止后关闭 Logger。
+
+HTTP 默认监听 `127.0.0.1:8080`，通过 `-addr` 修改；启用 gRPC 时默认监听
+`127.0.0.1:9090`，通过 `-grpc-addr` 修改。监听地址使用字面量 loopback IP。
+启用 gRPC 或 agentx 的工程需要 `API_TOKEN`，至少包含 32 个不含空白的可打印 ASCII 字符。
+所有 gRPC 调用（包括健康检查）使用 `authorization: Bearer <API_TOKEN>`。
+可选的 Agent 模型构造函数读取 `AGENT_PROVIDER`、`AGENT_MODEL` 和 `AGENT_API`，
+由应用显式构造并挂载 Agent 能力。
 
 | 选项 | 行为 |
 | --- | --- |
 | `--module` | 必填，应用自己的小写 Go 模块路径 |
-| `--layout monolith` | 默认，生成可启动的 `cmd/server` 宿主 |
+| `--layout monolith` | 默认，生成 `cmd/server` 入口及根目录 `app.go` 装配 |
 | `--layout microservices` | 生成仓库骨架，添加服务后再启动进程 |
 | `--transport http` | 默认，仅 HTTP，无 Proto、gRPC 或契约 CI |
 | `--transport grpc` | 仅 gRPC，启用契约工具和认证 |
@@ -90,6 +116,10 @@ go run ./services/order/cmd/order -addr 127.0.0.1:8081
 
 上下文只声明领域和应用包，不预设用例或持久化。服务从现有服务器构造代码继承传输配置，
 创建 app.go、私有适配器和独立入口；默认 HTTP 服务不创建 Proto，也不需要生成步骤。
+两种入口都只解析配置、建立信号上下文并调用 `Run(ctx, cfg)`：单体入口调用根应用包，
+独立入口调用服务包。根目录 `app.go` 负责单体装配，`services/<name>/app.go` 负责独立服务装配。
+在单体中启用服务时，在根目录 `app.go` 的 `app.New` 之前显式调用服务的 `Register`；
+新增操作不会自动重写已有装配入口。
 选择了 gRPC 的工程会生成版本化服务契约，须安装 Buf 1.72.0，执行 task api ACTION=generate 和 go mod tidy。
 新增操作读取当前 go.mod 和服务器构造代码，不维护重复元数据，不改动已有装配或依赖。
 
@@ -222,6 +252,8 @@ Proto 目录。有契约时检查 Buf 1.72.0，空骨架跳过 Buf。
 两种布局遵循相同边界：
 
 ```text
+app.go                              单体 Run 与显式服务装配
+config.yaml                         进程配置（Viper）
 api/proto/<context>/v1/               仅 gRPC 工程的源契约
 api/gen/go/                          生成的 Go/gRPC/gateway 代码
 api/http/                            HTTP 绑定及 OpenAPI 配置
@@ -230,7 +262,8 @@ application/<context>/query/         应用自行实现的读用例
 domain/<context>/                    应用自行实现的领域
 services/<name>/app.go               服务 Run 与显式 handler 挂载
 services/<name>/internal/port/{http,rpc}/  按需启用的入站适配器
-infrastructure/config/              参数、环境变量与配置校验
+infrastructure/config/              Viper 配置源、类型化配置与校验
+infrastructure/logging/             Zap 控制台/文件编码、轮转与关闭
 infrastructure/server/              HTTP/gRPC 构造，不接收启动回调
 infrastructure/rpc/                  认证及安全 RPC 错误
 infrastructure/agent/                可选的模型配置及有界执行
