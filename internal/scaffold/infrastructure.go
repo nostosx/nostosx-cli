@@ -40,11 +40,11 @@ var infrastructureDependencies = map[string]map[string]string{
 		"golang.org/x/text": "v0.42.0",
 	},
 	"kafka": {
-		"github.com/nostosx/servex-contrib/broker/kafka": "v1.1.0",
+		"github.com/nostosx/servex-contrib/broker/kafka": "v1.2.0",
 		"github.com/twmb/franz-go":                       "v1.22.2",
 	},
 	"nats": {
-		"github.com/nostosx/servex-contrib/broker/nats": "v1.1.0",
+		"github.com/nostosx/servex-contrib/broker/nats": "v1.2.0",
 		"github.com/nats-io/nats.go":                    "v1.54.0",
 	},
 }

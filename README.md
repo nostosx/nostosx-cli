@@ -1,10 +1,8 @@
 # nostosx-cli
 
-Current unreleased source moves the HTTP backend to servex-contrib/transport/httpx
-and its shared outbound client to servex-contrib/transport/client.
-It requires matching unpublished core/contrib sources; the declared adapter
-versions prepare a coordinated release. Published tags retain their original
-dependencies. Refresh versions and checksums before public-proxy acceptance.
+CLI v1.3.0 generates projects using published servex v1.4.0 and independent
+contrib HTTP, configuration, logging and optional infrastructure modules.
+Dependencies resolve without sibling source replacements.
 
 The `nostosx` command creates a clean Go project and adds contexts and services
 as the application grows. Choose a monolith or a service monorepo, with optional
@@ -24,17 +22,17 @@ Runnable library examples are maintained in
 With Go **1.27.3** or later:
 
 ```sh
-go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.2.0
+go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.3.0
 nostosx --version
 export NOSTOSX="$(command -v nostosx)"
 ```
 
 Ensure Go's binary installation directory is on PATH. Alternatively, download the
-archive for your OS and architecture from [v1.2.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.2.0),
+archive for your OS and architecture from [v1.3.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.3.0),
 verify it against `checksums.txt`, and place the executable on PATH.
 Project builds and contract plugins still require Go; contracts also require Buf.
 
-CLI v1.2.0 includes transport selection, native HTTP scaffolds and the Task-based
+CLI v1.3.0 includes transport selection, native HTTP scaffolds and the Task-based
 application layout described below.
 
 ## Build from source
@@ -228,7 +226,7 @@ compares paths and content without changing published output. `api lint` runs
 Buf lint; `api breaking` requires an explicit Buf baseline. All four commands
 share the additions lock. Plugins must succeed before output is replaced.
 
-Generated Taskfiles call CLI v1.2.0 through `go run`, without adding it to the
+Generated Taskfiles call CLI v1.3.0 through `go run`, without adding it to the
 application module. To use a source-built binary, run
 `task api ACTION=generate NOSTOSX="$NOSTOSX"`, then `task api NOSTOSX="$NOSTOSX"`.
 `NOSTOSX_VERSION` selects another reviewed release. For a local binary, set

@@ -1,9 +1,7 @@
 # nostosx-cli
 
-当前未发布源码已将 HTTP 后端迁至 servex-contrib/transport/httpx，
-共享出站客户端迁至 servex-contrib/transport/client；
-需要配套的未发布核心与 contrib 源码。依赖坐标用于准备配套发布；
-已发布标签保留原有依赖，公开代理验收须在更新真实版本与校验和后完成。
+CLI v1.3.0 使用公开发布的 servex v1.4.0 与独立的 contrib HTTP、配置、日志及
+可选基础设施模块生成工程，无需同级源码或本地 replace。
 
 `nostosx` 命令创建干净的 Go 工程，随后按需添加业务上下文和服务。
 支持单体与多服务布局，以及可选的 agentx 接入；两种布局均使用一个 Go 模块。
@@ -20,17 +18,17 @@
 使用 Go **1.27.3** 或更新版本：
 
 ```sh
-go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.2.0
+go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.3.0
 nostosx --version
 export NOSTOSX="$(command -v nostosx)"
 ```
 
 请将 Go 的二进制安装目录加入 PATH。也可以从
-[v1.2.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.2.0)
+[v1.3.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.3.0)
 下载对应系统和架构的压缩包，使用 `checksums.txt` 校验后，将可执行文件放入 PATH。
 工程构建和契约插件仍需要 Go；存在契约时还需要 Buf。
 
-CLI v1.2.0 包含本文的传输选择、原生 HTTP 骨架与 Task 工程结构。
+CLI v1.3.0 包含本文的传输选择、原生 HTTP 骨架与 Task 工程结构。
 
 ## 从源码构建
 
@@ -205,7 +203,7 @@ Handler.GetOrder 和 RegisterGetOrder。路径参数初始为 string；按业务
 `api breaking` 要求显式指定 Buf 基线。四个命令与新增操作共用锁，
 所有插件成功后才替换产物。
 
-生成项目的 Taskfile.yml 默认通过 `go run` 调用 CLI v1.2.0，不将其加入应用模块。
+生成项目的 Taskfile.yml 默认通过 `go run` 调用 CLI v1.3.0，不将其加入应用模块。
 使用源码构建的二进制时，先执行 `task api ACTION=generate NOSTOSX="$NOSTOSX"`，再执行 `task api NOSTOSX="$NOSTOSX"`。
 `NOSTOSX_VERSION` 可选择其他经审查的版本；`NOSTOSX` 用于指定本地二进制的绝对路径。
 普通构建和测试不调用 CLI。契约命令会执行 Go 插件，可能访问网络及模块缓存；

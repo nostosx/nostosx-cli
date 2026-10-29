@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v1.3.0 - 2026-10-29
+
+- Pin generated projects to published servex v1.4.0, grpcx v1.3.0 and
+  selector v1.2.0, plus the independent configuration/logging/backends.
+  Generated contract tasks use CLI v1.3.0.
+
 - Add opt-in MySQL, PostgreSQL, Kafka and NATS infrastructure through --with and
   add infrastructure. Generate native SQL pools/contrib brokers, configuration,
   bounded startup/readiness and explicit app.go lifecycle wiring. Keep generation
@@ -22,15 +28,9 @@
   Stop generating AGENTS.md, CONTRIBUTING.md, README.md, README.zh-CN.md,
   CHANGELOG.md, SECURITY.md and LICENSE; applications own these files.
 
-- Add the unreleased servex-contrib/transport/client module required by the
-  matching HTTP/gRPC backends. Refresh its actual version and checksum during
-  the coordinated release.
-
-- Current source scaffolds import the HTTP backend from servex-contrib,
-  adding its module only when HTTP is enabled. The new httpx/json adapters
-  and selector/random package require matching unreleased servex/contrib
-  sources; dependency coordinates are release preparation, not a claim of
-  public proxy availability. Refresh versions/checksums after coordinated release.
+- Use published contrib HTTP and shared transport/client backends. Include the
+  HTTP module only when enabled, and refresh all template dependency checksums
+  from the public Go proxy.
 
 ## v1.2.0 - 2026-10-28
 

@@ -6,7 +6,7 @@ vars:
   GOFMT: '{{.GOFMT | default "gofmt"}}'
   GOLANGCI_LINT: '{{.GOLANGCI_LINT | default "golangci-lint"}}'
   GOVULNCHECK: '{{.GOVULNCHECK | default "govulncheck"}}'
-[[if .GRPC]]  NOSTOSX_VERSION: '{{.NOSTOSX_VERSION | default "v1.2.0"}}'[[end]]
+[[if .GRPC]]  NOSTOSX_VERSION: '{{.NOSTOSX_VERSION | default "v1.3.0"}}'[[end]]
 
 tasks:
   fmt:

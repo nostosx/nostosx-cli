@@ -23,7 +23,7 @@ task vulncheck
 ```
 
 `GO`, `GOFMT`, `GOLANGCI_LINT` and `GOVULNCHECK` select executables. Generated
-Taskfiles pin CLI v1.2.0; tests override `NOSTOSX` with the binary built from
+Taskfiles pin CLI v1.3.0; tests override `NOSTOSX` with the binary built from
 this checkout. Use that override when developing the CLI or its templates.
 Generated projects resolve pinned public modules. Tests use temporary files,
 loopback listeners and local model fixtures, without Docker or paid model APIs.
@@ -152,7 +152,6 @@ Explain observable changes and validation. Chinese commit messages are welcome,
 for example `fix: 拒绝覆盖已有脚手架输出目录`. Do not commit, push, tag or publish
 without explicit authorization. See [RELEASING.md](RELEASING.md).
 
-The current HTTP backend and shared client migration is unreleased. Validate matching core and
-contrib source revisions through throwaway module overrides, never repository
-replace directives. Refresh actual dependency versions/checksums and rerun the
-standalone public-proxy gates after those libraries are published.
+Release acceptance uses published core/contrib dependencies with GOWORK=off.
+Run standalone public-proxy gates without temporary module overrides or local
+replacement directives.
