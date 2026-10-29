@@ -11,7 +11,7 @@ GOWORK=off; load relevant Go CLI, layout and testing skills when available.
   backend dependencies. Keep drivers in infrastructure; core and business ports stay
   independent. Config.Values carries the accepted Reader snapshot. Assemble resources
   before transport hooks with bounded startup/readiness and caller-owned cleanup.
-  add infrastructure adds source/config.example.yaml and only necessary go.mod requirements;
+  add infrastructure adds source/config.example.toml and only necessary go.mod requirements;
   preserve app/config/go.sum, comments and higher versions. Users run go mod tidy explicitly.
   Provision no tables, migrations, topics, streams, consumers or containers.
 - Generated projects contain no AGENTS, CONTRIBUTING, README, CHANGELOG, SECURITY
@@ -19,6 +19,9 @@ GOWORK=off; load relevant Go CLI, layout and testing skills when available.
 - Both layouts use one module. Monolith adds root app.go and cmd/server; microservices starts
   without services. Add contexts/services only when requested by the user.
   Commands parse configuration and call Run; assembly belongs in root or service app.go.
+- Process configuration is TOML: config/config.toml for monoliths, services/<name>/config/config.toml
+  for standalone services, created by add service. No root process config for empty microservices.
+  Entry points pass their default path to config.Load; do not merge other processes' files.
 - Generated applications load defaults/file/environment/explicit flags through
   contrib config/viper. Console text and optional JSON file logging use contrib logger/zap, injected
   through core Logger; construct and flush it in app.go without global loggers.

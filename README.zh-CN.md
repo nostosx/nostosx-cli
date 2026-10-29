@@ -1,6 +1,6 @@
 # nostosx-cli
 
-CLI v1.3.0 使用公开发布的 servex v1.4.0 与独立的 contrib HTTP、配置、日志及
+CLI v1.4.0 使用公开发布的 servex v1.4.0 与独立的 contrib HTTP、配置、日志及
 可选基础设施模块生成工程，无需同级源码或本地 replace。
 
 `nostosx` 命令创建干净的 Go 工程，随后按需添加业务上下文和服务。
@@ -18,17 +18,17 @@ CLI v1.3.0 使用公开发布的 servex v1.4.0 与独立的 contrib HTTP、配�
 使用 Go **1.27.3** 或更新版本：
 
 ```sh
-go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.3.0
+go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.4.0
 nostosx --version
 export NOSTOSX="$(command -v nostosx)"
 ```
 
 请将 Go 的二进制安装目录加入 PATH。也可以从
-[v1.3.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.3.0)
+[v1.4.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.4.0)
 下载对应系统和架构的压缩包，使用 `checksums.txt` 校验后，将可执行文件放入 PATH。
 工程构建和契约插件仍需要 Go；存在契约时还需要 Buf。
 
-CLI v1.3.0 包含本文的传输选择、原生 HTTP 骨架与 Task 工程结构。
+CLI v1.4.0 包含本文的传输选择、原生 HTTP 骨架与 Task 工程结构。
 
 ## 从源码构建
 
@@ -65,7 +65,9 @@ AGENTS.md、CONTRIBUTING.md、README.md、README.zh-CN.md、CHANGELOG.md、SECUR
 生成项目默认使用 contrib Viper 读取配置、contrib Zap 输出控制台文本和可选 JSON 文件日志。
 `config.Load` 只负责装配配置源并调用 Viper，`app.go` 构造 Logger 并通过核心接口注入。
 配置优先级为：默认值 < 配置文件 < 环境变量 < 显式命令行参数。
-默认读取生成的 `config.yaml`；默认文件缺失时可用默认值和环境变量启动，
+单体默认读取 `config/config.toml`，独立服务默认读取
+`services/<name>/config/config.toml`；路径相对于启动时的工作目录，建议从仓库根目录启动。
+默认文件缺失时可用默认值和环境变量启动，
 显式使用 `--config path` 时要求文件存在。`APP_ADDRESS`、`APP_GRPC_ADDRESS`、
 `APP_LOG_LEVEL`、`APP_TOKEN` 覆盖对应配置；`APP_TOKEN` 优先于原有的 `API_TOKEN`。
 `--log-level` 默认是 `info`。
@@ -75,7 +77,7 @@ AGENTS.md、CONTRIBUTING.md、README.md、README.zh-CN.md、CHANGELOG.md、SECUR
 每个事件只占一行；模块优先取 component，缺省使用调用者包名。
 控制台使用本地时间（格式为 2026-10-29 17:13:50）、大写级别、简短调用位置和易读耗时；
 文件每行写一个 JSON 对象，使用相同的秒级本地时间及以秒为单位的数值耗时。
-两种输出都保留独立业务字段。通过 config.yaml 的 log_file、APP_LOG_FILE
+两种输出都保留独立业务字段。通过进程 TOML 配置的 log_file、APP_LOG_FILE
 或 --log-file 开启文件输出，显式传入空的 --log-file 可关闭文件输出。
 默认只输出控制台；启用文件后，通过 lumberjack v2.2.1 按 100 MiB 轮转，
 最多保留五个备份、七天并压缩。每个服务进程使用独立文件路径，所有使用者停止后关闭 Logger。
@@ -122,6 +124,43 @@ go run ./services/order/cmd/order -addr 127.0.0.1:8081
 选择了 gRPC 的工程会生成版本化服务契约，须安装 Buf 1.72.0，执行 task api ACTION=generate 和 go mod tidy。
 新增上下文和服务时读取当前 go.mod 和服务器构造代码，不维护重复元数据，不改动已有装配或依赖。
 
+微服务骨架在添加服务前不生成进程配置。新增 order、payment 服务后，配置随服务保存：
+
+```text
+services/
+├── order/
+│   ├── app.go
+│   ├── cmd/order/main.go
+│   └── config/config.toml
+└── payment/
+    ├── app.go
+    ├── cmd/payment/main.go
+    └── config/config.toml
+```
+
+每个文件只包含对应进程的设置，不自动合并单体或其他服务的配置。例如：
+
+```toml
+# services/order/config/config.toml
+address = "127.0.0.1:8081"
+log_level = "info"
+log_file = ""
+
+# 仅启用 PostgreSQL 时生成此段；凭据可通过 APP_POSTGRES__DSN 提供。
+[postgres]
+dsn = ""
+max_open_conns = 20
+max_idle_conns = 10
+conn_max_lifetime = "30m"
+conn_max_idle_time = "5m"
+timeout = "5s"
+```
+
+新服务沿用 8080/9090 的监听默认值；本机同时启动多个进程时，分别修改各自配置中的端口，
+或传入 --addr/--grpc-addr。启用文件日志时，各服务设置独立的 log_file。
+环境变量使用相同 APP_ 约定，但在各进程的环境中分别设置。
+部署时可用 `go run ./services/order/cmd/order --config "/etc/order/config.toml"` 指定挂载配置。
+
 ## 可选基础设施
 
 ```sh
@@ -141,7 +180,7 @@ APP_MYSQL__DSN='user:password@tcp(127.0.0.1:3306)/app?parseTime=true' go run ./c
 | kafka | infrastructure/messaging/kafka | contrib broker/kafka + franz-go | kafka.brokers / APP_KAFKA__BROKERS |
 | nats | infrastructure/messaging/nats | contrib broker/nats + nats.go JetStream | nats.url / APP_NATS__URL |
 
-新项目的 `config.yaml` 会包含所选配置段。Viper 用双下划线分隔嵌套环境变量，
+单体配置和新增服务的独立配置会包含当前已选择的基础设施配置段。Viper 用双下划线分隔嵌套环境变量，
 Kafka brokers 支持逗号分隔列表。SQL DSN 默认为空，通过部署环境提供凭据。
 默认 SQL 连接池：最大打开 20、最大空闲 10、连接寿命 30 分钟、空闲超时 5 分钟；
 所有资源的连通性检查默认超时 5 秒。
@@ -159,7 +198,7 @@ Kafka brokers 支持逗号分隔列表。SQL DSN 默认为空，通过部署环�
 go mod tidy
 ```
 
-命令新增构造源码和同目录的 `config.example.yaml`，并定点更新 go.mod 必要依赖，
+命令新增构造源码和同目录的 `config.example.toml`，并定点更新 go.mod 必要依赖，
 保留现有配置、app.go 和 go.sum。将配置片段合并到主配置，在 app.go 中显式构造资源，
 放在传输 hooks 前面。新建或后续添加基础设施后都需显式执行 tidy，生成命令本身不下载依赖。
 PostgreSQL 同时约束 golang.org/x/text 至少为已修复的 v0.42.0，覆盖认证路径。
@@ -168,7 +207,8 @@ PostgreSQL 同时约束 golang.org/x/text 至少为已修复的 v0.42.0，覆盖
 
 之后新增的服务会继承已有基础设施构造。旧版生成配置需先补充带 `json:"-"` 的
 `Values config.Reader` 字段，并在 Load 中设置 `result.Values = loaded.Snapshot()`；
-CLI 会在写入服务文件前提示这项前置条件。已有装配入口始终由应用显式修改。
+CLI 会在写入服务文件前提示这项前置条件。配置加载模板的 Load 新增 defaultPath 参数；
+已有工程升级模板时需同步修改入口调用。已有装配入口始终由应用显式修改。
 
 ## 添加原生 HTTP 接口
 
@@ -203,7 +243,7 @@ Handler.GetOrder 和 RegisterGetOrder。路径参数初始为 string；按业务
 `api breaking` 要求显式指定 Buf 基线。四个命令与新增操作共用锁，
 所有插件成功后才替换产物。
 
-生成项目的 Taskfile.yml 默认通过 `go run` 调用 CLI v1.3.0，不将其加入应用模块。
+生成项目的 Taskfile.yml 默认通过 `go run` 调用 CLI v1.4.0，不将其加入应用模块。
 使用源码构建的二进制时，先执行 `task api ACTION=generate NOSTOSX="$NOSTOSX"`，再执行 `task api NOSTOSX="$NOSTOSX"`。
 `NOSTOSX_VERSION` 可选择其他经审查的版本；`NOSTOSX` 用于指定本地二进制的绝对路径。
 普通构建和测试不调用 CLI。契约命令会执行 Go 插件，可能访问网络及模块缓存；
@@ -300,7 +340,8 @@ Proto 目录。有契约时检查 Buf 1.72.0，空骨架跳过 Buf。
 
 ```text
 app.go                              单体 Run 与显式服务装配
-config.yaml                         进程配置（Viper）
+config/config.toml                  单体进程配置（TOML）
+services/<name>/config/config.toml   独立服务进程配置（TOML）
 api/proto/<context>/v1/               仅 gRPC 工程的源契约
 api/gen/go/                          生成的 Go/gRPC/gateway 代码
 api/http/                            HTTP 绑定及 OpenAPI 配置

@@ -19,7 +19,7 @@ func newAddInfrastructureCommand() *cobra.Command {
 			if err := scaffold.AddInfrastructure(cmd.Context(), dir, args[0]); err != nil {
 				return err
 			}
-			_, err := fmt.Fprintln(cmd.OutOrStdout(), "Added infrastructure. Merge its config.example.yaml into your configuration, construct it explicitly in app.go and pass it before transport hooks. Run go mod tidy; existing configuration and assembly were preserved.")
+			_, err := fmt.Fprintln(cmd.OutOrStdout(), "Added infrastructure. Merge its config.example.toml into your configuration, construct it explicitly in app.go and pass it before transport hooks. Run go mod tidy; existing configuration and assembly were preserved.")
 			return err
 		},
 	}

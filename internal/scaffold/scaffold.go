@@ -125,6 +125,12 @@ func New(ctx context.Context, o Options) (string, error) {
 	if err := addInfrastructureFiles(files, o); err != nil {
 		return "", err
 	}
+	if o.Layout == "monolith" {
+		files["config/config.toml"], err = renderConfiguration(o)
+		if err != nil {
+			return "", err
+		}
+	}
 	target := o.Output
 	if target == "" {
 		target = o.Name
@@ -190,7 +196,32 @@ func Add(ctx context.Context, dir, kind, name string) (err error) {
 	if err != nil {
 		return err
 	}
+	if kind == "service" {
+		files["services/"+name+"/config/config.toml"], err = renderConfiguration(o)
+		if err != nil {
+			return err
+		}
+	}
 	return writeFiles(ctx, root, files)
+}
+
+// renderConfiguration keeps process settings and backend examples in one format.
+func renderConfiguration(o Options) ([]byte, error) {
+	files, err := render("configuration", data{Options: o})
+	if err != nil {
+		return nil, err
+	}
+	content := files["config.toml"]
+	for _, feature := range o.Infrastructure {
+		backend, err := render("infrastructure/"+feature, data{Options: o})
+		if err != nil {
+			return nil, err
+		}
+		fragment := strings.TrimSuffix(infrastructurePaths[feature], feature+".go") + "config.example.toml"
+		content = append(content, '\n')
+		content = append(content, backend[fragment]...)
+	}
+	return content, nil
 }
 
 // Read the generated assembly shape instead of persisting duplicate project metadata.

@@ -1,6 +1,6 @@
 # nostosx-cli
 
-CLI v1.3.0 generates projects using published servex v1.4.0 and independent
+CLI v1.4.0 generates projects using published servex v1.4.0 and independent
 contrib HTTP, configuration, logging and optional infrastructure modules.
 Dependencies resolve without sibling source replacements.
 
@@ -22,17 +22,17 @@ Runnable library examples are maintained in
 With Go **1.27.3** or later:
 
 ```sh
-go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.3.0
+go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.4.0
 nostosx --version
 export NOSTOSX="$(command -v nostosx)"
 ```
 
 Ensure Go's binary installation directory is on PATH. Alternatively, download the
-archive for your OS and architecture from [v1.3.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.3.0),
+archive for your OS and architecture from [v1.4.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.4.0),
 verify it against `checksums.txt`, and place the executable on PATH.
 Project builds and contract plugins still require Go; contracts also require Buf.
 
-CLI v1.3.0 includes transport selection, native HTTP scaffolds and the Task-based
+CLI v1.4.0 includes transport selection, native HTTP scaffolds and the Task-based
 application layout described below.
 
 ## Build from source
@@ -73,7 +73,9 @@ Generated applications use contrib Viper for configuration and contrib Zap for
 readable console text and optional JSON file logging. `config.Load` composes sources and calls Viper;
 `app.go` constructs the logger and injects the core Logger interface.
 Configuration precedence is defaults < config file < environment < explicit flags.
-The generated `config.yaml` is loaded by default; a missing default file is allowed,
+Monoliths load `config/config.toml`; standalone services load
+`services/<name>/config/config.toml`. Paths are relative to the working directory;
+run from the repository root. A missing default file is allowed,
 while `--config path` requires that file. `APP_ADDRESS`, `APP_GRPC_ADDRESS`,
 `APP_LOG_LEVEL` and `APP_TOKEN` override enabled settings; `APP_TOKEN` takes
 precedence over the existing `API_TOKEN`. `--log-level` defaults to `info`.
@@ -85,7 +87,7 @@ An explicit component selects the module; otherwise it uses the caller package.
 Console records use local timestamps in YYYY-MM-DD HH:mm:ss format, uppercase levels,
 short caller locations and readable durations. File records use one JSON object
 per line, the same second-precision local timestamps and numeric durations in seconds. Business fields
-remain separate in both outputs. Set log_file in config.yaml, APP_LOG_FILE or
+remain separate in both outputs. Set log_file in the process TOML file, APP_LOG_FILE or
 --log-file to enable JSON file output; an explicit empty --log-file disables it.
 The default is console only. Enabled files rotate at 100 MiB, retain at most five
 backups for up to seven days, and compress backups with lumberjack v2.2.1.
@@ -138,6 +140,19 @@ Default HTTP services contain no Proto and need no generation. A gRPC-enabled pr
 install Buf 1.72.0, run task api ACTION=generate and go mod tidy before building it.
 Context/service additions read the current go.mod and server constructors without duplicate metadata, dependency edits or assembly rewrites.
 
+A microservices skeleton has no process configuration until services are added.
+Each `add service` creates `services/<name>/config/config.toml` and points that
+service's entry at its own file. Files are independent: root and other services'
+settings are not merged. Both layouts reuse `infrastructure/config` for loading
+and validation.
+
+For example, order can use `address = "127.0.0.1:8081"` and payment
+`address = "127.0.0.1:8082"` in their respective TOML files. New services retain
+the 8080/9090 defaults; assign distinct ports before running them together locally.
+Give each process its own log_file when file logging is enabled. APP_ variables
+are configured separately in each process environment. Override the path at deployment
+with `go run ./services/order/cmd/order --config "/etc/order/config.toml"`.
+
 ## Optional infrastructure
 
 ```sh
@@ -157,7 +172,8 @@ agentx and either or both databases. Both layouts use the same constructors:
 | kafka | infrastructure/messaging/kafka | contrib broker/kafka + franz-go | kafka.brokers / APP_KAFKA__BROKERS |
 | nats | infrastructure/messaging/nats | contrib broker/nats + nats.go JetStream | nats.url / APP_NATS__URL |
 
-`config.yaml` contains the selected sections. Viper loads nested `APP_` variables
+Monolith and newly added service configurations contain the selected infrastructure
+sections. Viper loads nested `APP_` variables
 with `__` between levels; Kafka brokers accept a comma-separated list. SQL DSNs
 start empty; supply credentials through the deployment environment. The default
 SQL pool has 20 open connections, 10 idle connections, a 30-minute lifetime and
@@ -179,7 +195,7 @@ For an existing project:
 go mod tidy
 ```
 
-This adds the constructor and `config.example.yaml` beside it, and updates only the
+This adds the constructor and `config.example.toml` beside it, and updates only the
 required dependencies in go.mod. It preserves existing application code,
 configuration and go.sum. Merge the example section into your configuration and
 construct/register the resource before transport hooks in app.go. Run tidy explicitly
@@ -191,7 +207,9 @@ file collisions and symlinks are rejected; normal failures roll back new outputs
 Subsequently added services inherit available infrastructure constructors. Older
 generated configurations need a `Values config.Reader` field with `json:"-"` and
 `result.Values = loaded.Snapshot()` in Load first; the CLI reports this prerequisite
-before writing service files. Existing composition roots are always edited manually.
+before writing service files. Applications adopting the new configuration template
+must also pass defaultPath between name and args in config.Load calls.
+Existing composition roots are always edited manually.
 
 ## Add a native HTTP operation
 
@@ -226,7 +244,7 @@ compares paths and content without changing published output. `api lint` runs
 Buf lint; `api breaking` requires an explicit Buf baseline. All four commands
 share the additions lock. Plugins must succeed before output is replaced.
 
-Generated Taskfiles call CLI v1.3.0 through `go run`, without adding it to the
+Generated Taskfiles call CLI v1.4.0 through `go run`, without adding it to the
 application module. To use a source-built binary, run
 `task api ACTION=generate NOSTOSX="$NOSTOSX"`, then `task api NOSTOSX="$NOSTOSX"`.
 `NOSTOSX_VERSION` selects another reviewed release. For a local binary, set
@@ -336,7 +354,8 @@ Both layouts retain the same boundaries:
 
 ```text
 app.go                              monolith Run and explicit service assembly
-config.yaml                         process configuration (Viper)
+config/config.toml                  monolith process configuration (TOML)
+services/<name>/config/config.toml   standalone service configuration (TOML)
 api/proto/<context>/v1/               contracts added with a service
 api/gen/go/                          generated Go/gRPC/gateway code
 api/http/                            HTTP bindings and OpenAPI configuration

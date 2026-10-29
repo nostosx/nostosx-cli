@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v1.4.0 - 2026-10-29
+
+- **Breaking (generated templates):** Use TOML process configuration. Monoliths
+  default to config/config.toml; add service creates an independent
+  services/<name>/config/config.toml with the selected infrastructure sections.
+  Empty microservices skeletons have no process configuration. Config.Load takes
+  an explicit defaultPath argument between name and args; migrate existing entry
+  calls when adopting the new template. Paths are relative to the working directory.
+  Infrastructure additions emit config.example.toml. Preserve file/env/flag
+  precedence and explicit --config overrides.
+
 ## v1.3.0 - 2026-10-29
 
 - Pin generated projects to published servex v1.4.0, grpcx v1.3.0 and

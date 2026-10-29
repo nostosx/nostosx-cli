@@ -13,7 +13,6 @@ import (
 	"os"
 	"path"
 	"slices"
-	"strings"
 
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/semver"
@@ -133,10 +132,6 @@ func addInfrastructureFiles(files map[string][]byte, o Options) error {
 				return fmt.Errorf("duplicate infrastructure output %s", name)
 			}
 			files[name] = content
-		}
-		fragment := strings.TrimSuffix(infrastructurePaths[feature], feature+".go") + "config.example.yaml"
-		if _, exists := files["config.yaml"]; exists {
-			files["config.yaml"] = append(files["config.yaml"], files[fragment]...)
 		}
 	}
 	if len(o.Infrastructure) != 0 {

@@ -21,7 +21,7 @@ func main() {
 }
 
 func run() error {
-	cfg, err := config.Load(context.Background(), "server", os.Args[1:], os.Stderr)
+	cfg, err := config.Load(context.Background(), "server", "config/config.toml", os.Args[1:], os.Stderr)
 	if errors.Is(err, flag.ErrHelp) { return nil }
 	if err != nil { return err }
 	ctx, stop := app.SignalContext(context.Background())

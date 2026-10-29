@@ -40,7 +40,7 @@ func TestInfrastructureSelections(t *testing.T) {
 				if exists != selected {
 					t.Fatalf("%s selected=%v exists=%v", feature, selected, exists)
 				}
-				if strings.Contains(files["config.yaml"], feature+":\n") != selected {
+				if strings.Contains(files["config/config.toml"], "["+feature+"]\n") != selected {
 					t.Fatal("configuration selection mismatch", feature)
 				}
 				if strings.Contains(files["app.go"], feature+"infra.New(") != selected {
@@ -112,6 +112,9 @@ func TestAddInfrastructurePreservesApplication(t *testing.T) {
 			if !strings.Contains(read(t, filepath.Join(o.Output, "services/order/app.go")), name+"infra.New(") {
 				t.Fatal("service did not inherit infrastructure")
 			}
+			if !strings.Contains(read(t, filepath.Join(o.Output, "services/order/config/config.toml")), "["+name+"]") {
+				t.Fatal("service configuration did not inherit infrastructure")
+			}
 		})
 	}
 }
@@ -147,7 +150,7 @@ func TestInfrastructureRejectsUnsafeChanges(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(o.Output, "infrastructure/database/mysql"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(o.Output, "infrastructure/database/mysql/config.example.yaml"), []byte("owned"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(o.Output, "infrastructure/database/mysql/config.example.toml"), []byte("owned"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	before = snapshot(t, o.Output)

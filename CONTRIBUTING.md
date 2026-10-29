@@ -23,7 +23,7 @@ task vulncheck
 ```
 
 `GO`, `GOFMT`, `GOLANGCI_LINT` and `GOVULNCHECK` select executables. Generated
-Taskfiles pin CLI v1.3.0; tests override `NOSTOSX` with the binary built from
+Taskfiles pin CLI v1.4.0; tests override `NOSTOSX` with the binary built from
 this checkout. Use that override when developing the CLI or its templates.
 Generated projects resolve pinned public modules. Tests use temporary files,
 loopback listeners and local model fixtures, without Docker or paid model APIs.
@@ -68,8 +68,10 @@ service, archtest package or documentation/license files. Monolith commands call
 Run in root app.go; standalone commands call Run in services/<name>/app.go.
 Keep dependency construction, handler mounting and lifecycle assembly out of main.
 Use contrib Viper for configuration loading and contrib Zap for console text and optional JSON file
-logging. Keep file/env/flag precedence explicit and inject only core Logger into
-App, HTTP and RPC boundaries. Composition roots own flushing; avoid global loggers.
+logging. Use config/config.toml for monoliths and services/<name>/config/config.toml for
+standalone services; empty microservices skeletons have no process configuration.
+Entry points supply their own default path to config.Load. Keep file/env/flag
+precedence explicit and inject only core Logger into App, HTTP and RPC boundaries. Composition roots own flushing; avoid global loggers.
 `add context` declares packages; `add service`
 creates an empty Proto service and explicit assembly. It must not edit existing
 contracts, dependencies or composition roots. New features need an observable,
@@ -116,7 +118,7 @@ listeners. Config.Values retains the Viper Reader snapshot. Startup/readiness ar
 bounded; composition roots release constructed resources even if startup fails.
 Generate no migrations, tables, topics, streams, consumers or containers.
 
-`add infrastructure` creates source/config.example.yaml and updates go.mod requirements
+`add infrastructure` creates source/config.example.toml and updates go.mod requirements
 offline, preserving higher versions, comments, file permissions and existing assembly,
 configuration and go.sum. Publish go.mod last under the shared project lock; roll back
 new outputs on normal failures. Generation never resolves dependencies: run explicit

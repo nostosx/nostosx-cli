@@ -74,7 +74,7 @@ func TestNewLayouts(t *testing.T) {
 							}
 						}
 					}
-					for _, name := range []string{"infrastructure/config/config.go", "infrastructure/server/server.go", "infrastructure/logging/logging.go", "config.yaml", "Taskfile.yml"} {
+					for _, name := range []string{"infrastructure/config/config.go", "infrastructure/server/server.go", "infrastructure/logging/logging.go", "Taskfile.yml"} {
 						if _, ok := files[name]; !ok {
 							t.Errorf("missing generated file %s", name)
 						}
@@ -110,6 +110,9 @@ func TestNewLayouts(t *testing.T) {
 						if !strings.Contains(entry, "application.Run(ctx, cfg)") || strings.Contains(entry, "/infrastructure/server") || strings.Contains(entry, "app.New(") {
 							t.Fatal("monolith entry must delegate assembly to app.go")
 						}
+					}
+					if _, exists := files["config/config.toml"]; exists != combined {
+						t.Fatal("only a monolith has a root process configuration")
 					}
 					_, agentRunner := files["infrastructure/agent/runner.go"]
 					if combined != (layout == "monolith") || agentRunner != agent {
@@ -227,6 +230,7 @@ func TestAddPreservesFilesAndRollsBack(t *testing.T) {
 		"application/order/query/doc.go",
 		"domain/order/doc.go",
 		"services/order/internal/port/http/handler.go",
+		"services/order/config/config.toml",
 	} {
 		if _, ok := after[name]; !ok {
 			t.Errorf("missing added file %s", name)
