@@ -84,8 +84,8 @@ func TestNativeHTTPRejectsConflictsBeforeWriting(t *testing.T) {
 		{"response type", "other.go", "package http\ntype GetOrderResponse struct{}"},
 		{"request value", "other.go", "package http\nvar GetOrderRequest int"},
 		{"registration", "other.go", "package http\nfunc RegisterGetOrder() {}"},
-		{"route", "other.go", "package http\nimport h \"github.com/nostosx/servex/transport/httpx\"\nfunc mount(){h.RouteFunc(nil,\"GET /v1/orders/current\",nil)}"},
-		{"dynamic route", "other.go", "package http\nimport h \"github.com/nostosx/servex/transport/httpx\"\nfunc mount(){h.RouteFunc(nil,pattern,nil)}"},
+		{"route", "other.go", "package http\nimport h \"github.com/nostosx/servex-contrib/transport/httpx\"\nfunc mount(){h.RouteFunc(nil,\"GET /v1/orders/current\",nil)}"},
+		{"dynamic route", "other.go", "package http\nimport h \"github.com/nostosx/servex-contrib/transport/httpx\"\nfunc mount(){h.RouteFunc(nil,pattern,nil)}"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -179,6 +179,54 @@ func TestTransportSelection(t *testing.T) {
 		}
 		if _, err := os.Stat(o.Output); !os.IsNotExist(err) {
 			t.Fatal("invalid options created output")
+		}
+	}
+}
+
+func TestGeneratedTransportDependencies(t *testing.T) {
+	t.Parallel()
+	for _, layout := range []string{"monolith", "microservices"} {
+		for _, agent := range []bool{false, true} {
+			for _, transport := range []string{"http", "grpc", "http,grpc"} {
+				name := layout + "/business/" + transport
+				if agent {
+					name = layout + "/agentx/" + transport
+				}
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+					o := options(t)
+					o.Layout, o.Agent, o.Transport = layout, agent, transport
+					if _, err := scaffold.New(t.Context(), o); err != nil {
+						t.Fatal(err)
+					}
+					files := snapshot(t, o.Output)
+					wantHTTP := transport != "grpc"
+					const backend = "github.com/nostosx/servex-contrib/transport/httpx"
+					if strings.Contains(files["go.mod"], backend+" v1.0.0") != wantHTTP {
+						t.Fatal("HTTP backend dependency does not match enabled transports")
+					}
+					if strings.Contains(files["go.mod"], "github.com/nostosx/servex-contrib/encoding/json v1.0.0 // indirect") != wantHTTP {
+						t.Fatal("JSON dependency does not match enabled transports")
+					}
+					if !strings.Contains(files["go.mod"], "github.com/nostosx/servex-contrib/selector v1.1.0 // indirect") {
+						t.Fatal("transport selector dependency is missing")
+					}
+					if !strings.Contains(files["go.mod"], "github.com/nostosx/servex-contrib/transport/client v1.0.0 // indirect") {
+						t.Fatal("shared transport client dependency is missing")
+					}
+					if strings.Contains(files["go.mod"], "github.com/nostosx/servex-contrib/cache/loader") {
+						t.Fatal("unused cache loader dependency is present")
+					}
+					if strings.Contains(files["infrastructure/server/server.go"], backend) != wantHTTP {
+						t.Fatal("HTTP assembly does not use the selected backend module")
+					}
+					for path, content := range files {
+						if strings.HasSuffix(path, ".go") && strings.Contains(content, "github.com/nostosx/servex/transport/httpx") {
+							t.Fatalf("core HTTP implementation remains in %s", path)
+						}
+					}
+				})
+			}
 		}
 	}
 }

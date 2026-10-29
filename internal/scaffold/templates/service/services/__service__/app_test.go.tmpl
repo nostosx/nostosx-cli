@@ -5,7 +5,7 @@ import (
  "context"
  "errors"
 
- [[if .HTTP]]"github.com/nostosx/servex/transport/httpx"[[end]]
+ [[if .HTTP]]"github.com/nostosx/servex-contrib/transport/httpx"[[end]]
  [[if .GRPC]]"google.golang.org/grpc"[[end]]
 
  "[[.Module]]/infrastructure/config"

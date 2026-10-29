@@ -73,3 +73,9 @@ conflicts, preservation of existing Proto source and partial-output rollback.
 Exercise HTTP health and authenticated native gRPC in both process topologies and check
 that application/domain packages remain free of transport dependencies. Do not
 infer cross-host TLS deployment acceptance from plaintext loopback integration tests.
+
+The current backend migration is unreleased. Before releasing these templates,
+publish matching core, encoding/json, selector (with random), transport/client,
+transport/httpx and transport/grpcx versions. Refresh HTTP-only, gRPC-only and combined go.mod/go.sum
+templates from the public proxy, then rerun all twelve generated variants without
+local replacements.

@@ -1,5 +1,10 @@
 # nostosx-cli
 
+当前未发布源码已将 HTTP 后端迁至 servex-contrib/transport/httpx，
+共享出站客户端迁至 servex-contrib/transport/client；
+需要配套的未发布核心与 contrib 源码。依赖坐标用于准备配套发布；
+已发布标签保留原有依赖，公开代理验收须在更新真实版本与校验和后完成。
+
 `nostosx` 命令创建干净的 Go 工程，随后按需添加业务上下文和服务。
 支持单体与多服务布局，以及可选的 agentx 接入；两种布局均使用一个 Go 模块。
 
@@ -71,7 +76,7 @@ go run ./cmd/server
 
 `new`、`add` 和 `api scaffold` 离线完成，不执行 Go、Buf、Shell、Git 或模型请求；
 契约构建与检查命令会显式执行工具。新增源码时拒绝已有路径和符号链接，
-不生成项目元数据文件。构建通过公开版本解析固定依赖，使用 `GOWORK=off`，
+不生成项目元数据文件。已发布模板通过公开版本解析固定依赖，使用 `GOWORK=off`，
 无需同级源码或本地 replace。未启用 agentx 时不生成其源码与依赖。
 启用 agentx 也不会自动开放聊天接口或业务工具，这些由应用显式装配。
 

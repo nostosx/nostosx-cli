@@ -1,5 +1,11 @@
 # nostosx-cli
 
+Current unreleased source moves the HTTP backend to servex-contrib/transport/httpx
+and its shared outbound client to servex-contrib/transport/client.
+It requires matching unpublished core/contrib sources; the declared adapter
+versions prepare a coordinated release. Published tags retain their original
+dependencies. Refresh versions and checksums before public-proxy acceptance.
+
 The `nostosx` command creates a clean Go project and adds contexts and services
 as the application grows. Choose a monolith or a service monorepo, with optional
 agentx integration. Both layouts use one Go module.
@@ -77,7 +83,7 @@ test package. Follow the generated bilingual README for configuration and extens
 `new`, `add` and `api scaffold` work offline without executing Go, Buf, shell commands, Git or
 model requests. Contract build and check commands explicitly execute tools.
 Existing paths and symlinks are rejected. No project metadata file is
-created. Builds resolve pinned public dependencies with `GOWORK=off`, without
+created. Released templates resolve pinned public dependencies with `GOWORK=off`, without
 sibling checkouts or local replacements. Without `--with agentx`, no agentx source
 or dependencies are generated. The agent option does not expose a chat endpoint
 or select business tools; application assembly supplies those explicitly.

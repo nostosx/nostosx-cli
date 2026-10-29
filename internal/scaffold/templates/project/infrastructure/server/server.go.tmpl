@@ -8,7 +8,7 @@ import (
  [[if .GRPC]]"github.com/nostosx/servex-contrib/transport/grpcx"
  "google.golang.org/grpc"[[end]]
  "github.com/nostosx/servex/health"
- [[if .HTTP]]"github.com/nostosx/servex/transport/httpx"[[end]]
+ [[if .HTTP]]"github.com/nostosx/servex-contrib/transport/httpx"[[end]]
 
  "[[.Module]]/infrastructure/config"
  [[if .GRPC]]"[[.Module]]/infrastructure/rpc"[[end]]

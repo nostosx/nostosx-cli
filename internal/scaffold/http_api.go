@@ -126,7 +126,7 @@ func checkHTTPRoutes(ctx context.Context, root *os.Root, o APIOptions) error {
 			if e != nil {
 				return e
 			}
-			if value != "github.com/nostosx/servex/transport/httpx" {
+			if value != "github.com/nostosx/servex-contrib/transport/httpx" {
 				continue
 			}
 			alias := "httpx"

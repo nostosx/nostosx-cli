@@ -1,5 +1,9 @@
 # [[.Name]]
 
+此开发模板依赖尚未发布的配套核心与 contrib API，
+包括共享 transport/client、selector/random[[if .HTTP]] 和 contrib HTTP 后端[[end]]。
+本地验证需使用经审查且匹配的源码，公开代理构建前需更新实际依赖版本与校验和。
+
 由 nostosx-cli 生成、由应用自行维护的单模块 Go 工程。普通构建和运行不依赖 CLI。
 当前启用的传输为 **[[.Transport]]**；服务沿用这些传输，不自动引入其他协议。
 

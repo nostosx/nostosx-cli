@@ -124,3 +124,8 @@ Git baseline; an initial empty project is not such a baseline.
 Explain observable changes and validation. Chinese commit messages are welcome,
 for example `fix: 拒绝覆盖已有脚手架输出目录`. Do not commit, push, tag or publish
 without explicit authorization. See [RELEASING.md](RELEASING.md).
+
+The current HTTP backend and shared client migration is unreleased. Validate matching core and
+contrib source revisions through throwaway module overrides, never repository
+replace directives. Refresh actual dependency versions/checksums and rerun the
+standalone public-proxy gates after those libraries are published.

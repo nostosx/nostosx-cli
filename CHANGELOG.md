@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Add the unreleased servex-contrib/transport/client module required by the
+  matching HTTP/gRPC backends. Refresh its actual version and checksum during
+  the coordinated release.
+
+- Current source scaffolds import the HTTP backend from servex-contrib,
+  adding its module only when HTTP is enabled. The new httpx/json adapters
+  and selector/random package require matching unreleased servex/contrib
+  sources; dependency coordinates are release preparation, not a claim of
+  public proxy availability. Refresh versions/checksums after coordinated release.
+
 ## v1.2.0 - 2026-10-28
 
 - Pin generated projects to servex v1.3.0, grpcx v1.2.0 and optional agentx

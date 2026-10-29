@@ -1,7 +1,7 @@
 // Package http maps native HTTP requests to application use cases.
 package http
 
-import "github.com/nostosx/servex/transport/httpx"
+import "github.com/nostosx/servex-contrib/transport/httpx"
 
 // Handler owns the dependencies required by this service's HTTP operations.
 type Handler struct{}
