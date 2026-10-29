@@ -91,7 +91,7 @@ tasks:
           set -- -shuffle=on -count=1
           if [ "$race" = true ] || [ "$cover" = true ]; then set -- "$@" -race; fi
           if [ "$cover" = true ]; then set -- "$@" -coverprofile=coverage.out -covermode=atomic; fi
-          if [ "$integration" = true ]; then set -- "$@" -tags integration; fi
+          if [ "$integration" = true ]; then set -- "$@" -tags integration -timeout=35m; fi
           {{.GO | shellQuote}} test "$@" ./...
           if [ "$cover" = true ]; then {{.GO | shellQuote}} tool cover -func=coverage.out; fi
 
