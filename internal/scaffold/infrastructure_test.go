@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/semver"
 
 	"github.com/nostosx/nostosx-cli/internal/scaffold"
 )
@@ -54,11 +55,20 @@ func TestInfrastructureSelections(t *testing.T) {
 					}
 				}
 			}
-			if _, err := modfile.Parse("go.mod", []byte(files["go.mod"]), nil); err != nil {
+			manifest, err := modfile.Parse("go.mod", []byte(files["go.mod"]), nil)
+			if err != nil {
 				t.Fatal(err)
 			}
-			if mask&2 != 0 && !strings.Contains(files["go.mod"], "golang.org/x/text v0.42.0") {
-				t.Fatal("PostgreSQL must pin the patched text dependency floor")
+			if mask&2 != 0 {
+				var textVersion string
+				for _, requirement := range manifest.Require {
+					if requirement.Mod.Path == "golang.org/x/text" {
+						textVersion = requirement.Mod.Version
+					}
+				}
+				if semver.Compare(textVersion, "v0.42.0") < 0 {
+					t.Fatalf("PostgreSQL text dependency %q is below the patched floor", textVersion)
+				}
 			}
 			o.Output = filepath.Join(t.TempDir(), "second")
 			if _, err := scaffold.New(t.Context(), o); err != nil {
