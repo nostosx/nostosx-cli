@@ -1,7 +1,10 @@
 # nostosx-cli
 
-CLI v1.4.0 使用公开发布的 servex v1.4.0 与独立的 contrib HTTP、配置、日志及
+CLI v1.5.0 使用公开发布的 servex v1.4.0 与独立的 contrib HTTP、配置、日志及
 可选基础设施模块生成工程，无需同级源码或本地 replace。
+
+CLI v1.5.0 支持 --context、--kind 和类型化 CQRS 自动装配，服务与业务上下文独立。
+已有应用需要显式迁移源码；更新生成器不会自动改写已有工程。
 
 `nostosx` 命令创建干净的 Go 工程，随后按需添加业务上下文和服务。
 支持单体与多服务布局，以及可选的 agentx 接入；两种布局均使用一个 Go 模块。
@@ -18,17 +21,17 @@ CLI v1.4.0 使用公开发布的 servex v1.4.0 与独立的 contrib HTTP、配�
 使用 Go **1.27.3** 或更新版本：
 
 ```sh
-go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.4.0
+go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.5.0
 nostosx --version
 export NOSTOSX="$(command -v nostosx)"
 ```
 
 请将 Go 的二进制安装目录加入 PATH。也可以从
-[v1.4.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.4.0)
+[v1.5.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.5.0)
 下载对应系统和架构的压缩包，使用 `checksums.txt` 校验后，将可执行文件放入 PATH。
 工程构建和契约插件仍需要 Go；存在契约时还需要 Buf。
 
-CLI v1.4.0 包含本文的传输选择、原生 HTTP 骨架与 Task 工程结构。
+CLI v1.5.0 包含本文的传输选择、原生 HTTP 骨架与 Task 工程结构。
 
 ## 从源码构建
 
@@ -115,7 +118,8 @@ HTTP 默认监听 `127.0.0.1:8080`，通过 `-addr` 修改；启用 gRPC 时默�
 go run ./services/order/cmd/order -addr 127.0.0.1:8081
 ```
 
-上下文只声明领域和应用包，不预设用例或持久化。服务从现有服务器构造代码继承传输配置，
+上下文声明 domain 与 application/{command,query,port}，不预设业务或持久化。
+服务可以先于任何上下文创建，服务名与业务上下文名独立。服务从现有服务器构造代码继承传输配置，
 创建 app.go、私有适配器和独立入口；默认 HTTP 服务不创建 Proto，也不需要生成步骤。
 两种入口都只解析配置、建立信号上下文并调用 `Run(ctx, cfg)`：单体入口调用根应用包，
 独立入口调用服务包。根目录 `app.go` 负责单体装配，`services/<name>/app.go` 负责独立服务装配。
@@ -208,19 +212,66 @@ PostgreSQL 同时约束 golang.org/x/text 至少为已修复的 v0.42.0，覆盖
 之后新增的服务会继承已有基础设施构造。旧版生成配置需先补充带 `json:"-"` 的
 `Values config.Reader` 字段，并在 Load 中设置 `result.Values = loaded.Snapshot()`；
 CLI 会在写入服务文件前提示这项前置条件。配置加载模板的 Load 新增 defaultPath 参数；
-已有工程升级模板时需同步修改入口调用。已有装配入口始终由应用显式修改。
+已有工程升级模板时需同步修改入口调用。服务添加保留已有装配；add api 会更新目标服务的 CQRS 装配。
 
 ## 添加原生 HTTP 接口
 
 ```sh
-"$NOSTOSX" add api get-order --service order --method GET --path '/v1/orders/{order_id}'
+"$NOSTOSX" add api get-order --service order --context order --method GET --path '/v1/orders/{order_id}'
 ```
 
-默认 --transport http，仅新增 services/order/internal/port/http/get_order.go：请求/响应、
-Handler.GetOrder 和 RegisterGetOrder。路径参数初始为 string；按业务选择字段及类型。
-实现授权、参数转换和应用调用，并在 HTTP 包的 Register 中显式调用 RegisterGetOrder(server, handler)。
-不生成 Proto、OpenAPI、占位测试或业务用例，不执行契约生成，也不自动挂载路由。
-重复符号、已有输出及可识别的静态 HTTP 路由冲突在写入前拒绝；动态路由须手工维护。
+默认 `--transport http`，一次生成应用用例、处理器集合装配和协议适配器。
+`--context` 必须显式指定，独立于 `--service`：
+
+```sh
+"$NOSTOSX" add service studio --dir .
+"$NOSTOSX" add context creation --dir .
+"$NOSTOSX" add api create-profile --service studio --context creation --method POST --path /profiles
+"$NOSTOSX" add api get-profile --service studio --context creation --method GET --path '/profiles/{id}'
+```
+
+```text
+application/creation/
+  command/create_profile.go       CreateProfileCommand、Result、Handler 及构造函数
+  query/get_profile.go            GetProfileQuery、Result、Handler 及构造函数
+  port/                           用例所需的出站接口
+services/studio/
+  app.go                          构造依赖并注入处理器集合
+  internal/application/
+    command.go                    类型化 Command、Deps 与 ChainCommand
+    query.go                      类型化 Query、Deps 与 ChainQuery
+  internal/port/http/
+    server.go                     StudioServer、构造函数与路由挂载
+    create_profile.go             协议转换并调用 commands.CreateProfile.Handle
+    get_profile.go                协议转换并调用 queries.GetProfile.Handle
+    mapper.go                     应用结果与协议响应的转换边界
+  internal/adapter/               服务私有的具体实现
+```
+
+处理器集合只聚合类型化处理器，不使用动态注册表或反射。用例属于选择的业务 context，
+operation 为 `creation.create_profile`，不受服务名影响。每个处理器和 chain 在服务装配时构造一次，
+由 HTTP/gRPC 共同复用。app.go 通过 CommandDeps/QueryDeps 提供处理器，中间件在服务内 application 处理器集合中装配。
+新建上下文和服务不生成虚构业务、仓储或依赖；按实际用例补充 port、构造参数及服务私有 adapter。
+
+`--kind command|query` 指定性质；HTTP/gateway 默认 GET=query，其他方法=command，可覆盖；
+纯 gRPC 必须指定 --kind。应用用例暂返回 Unimplemented 并处理取消；业务在应用层实现，
+认证授权在服务装配层明确配置。单体仍需在根 app.go 挂载服务，gateway 的 HTTP 挂载保持显式。
+
+同一 service/context/name/kind 添加第二种传输会保留业务实现，并复用处理器集合字段及同一 chain。
+自动映射支持生成的 string 输入和空结果；自定义类型、结果或新增构造依赖需要手工明确映射与接线。
+原生 HTTP 不生成 Proto、OpenAPI、占位测试或调用契约工具；脚手架始终离线。
+契约、应用类型、处理器集合、导入及装配冲突会在发布前拒绝。普通错误恢复原始内容与权限、删除本次新增文件，
+服务 Proto 最后发布。大幅定制的处理器集合、构造函数、注册形状及动态路由须手工维护。
+
+## 迁移已有生成服务
+
+这次布局变更不会自动改写已经生成的应用。契约继续归可部署 service，业务归属需要显式迁移：
+
+1. 每次 add api 传入 --context，业务上下文不再跟随 --service。
+2. 新增服务私有 Command/Query，用 CommandDeps/QueryDeps 提供已有处理器，将 CQRS chain 移入处理器集合。
+3. 将 Handler 的逐接口依赖字段改为具名服务 Server 接收两类处理器集合；协议转换归 mapper.go。
+4. 应用请求使用 Command/Query 命名，显式构造函数返回类型化 Servex CQRS 接口。
+5. 保留已有业务构造依赖、中间件、授权和生命周期归属，不对应用文件直接覆盖生成。
 
 ## 构建可选 Proto 契约
 
@@ -243,7 +294,7 @@ Handler.GetOrder 和 RegisterGetOrder。路径参数初始为 string；按业务
 `api breaking` 要求显式指定 Buf 基线。四个命令与新增操作共用锁，
 所有插件成功后才替换产物。
 
-生成项目的 Taskfile.yml 默认通过 `go run` 调用 CLI v1.4.0，不将其加入应用模块。
+生成项目的 Taskfile.yml 默认通过 `go run` 调用 CLI v1.5.0，不将其加入应用模块。
 使用源码构建的二进制时，先执行 `task api ACTION=generate NOSTOSX="$NOSTOSX"`，再执行 `task api NOSTOSX="$NOSTOSX"`。
 `NOSTOSX_VERSION` 可选择其他经审查的版本；`NOSTOSX` 用于指定本地二进制的绝对路径。
 普通构建和测试不调用 CLI。契约命令会执行 Go 插件，可能访问网络及模块缓存；
@@ -254,8 +305,8 @@ Go、Buf、工程配置和插件源码必须可信，这些命令不提供沙箱
 已有上下文和服务后，显式添加操作：
 
 ```sh
-"$NOSTOSX" add api create-order --transport gateway --service order --method POST --path /v1/orders --dir .
-"$NOSTOSX" add api get-order --transport gateway --service order --method GET --path '/v1/orders/{order_id}' --dir .
+"$NOSTOSX" add api create-order --transport gateway --service order --context order --method POST --path /v1/orders --dir .
+"$NOSTOSX" add api get-order --transport gateway --service order --context order --method GET --path '/v1/orders/{order_id}' --dir .
 task api ACTION=generate NOSTOSX="$NOSTOSX"
 go get github.com/grpc-ecosystem/grpc-gateway/v2@v2.29.0
 go mod tidy
@@ -268,7 +319,7 @@ task api NOSTOSX="$NOSTOSX"
 ```text
 api/proto/order/v1/create_order.proto                 请求与响应消息
 api/http/routes/order_create_order.yaml                HTTP 映射
-services/order/internal/port/rpc/create_order.go        尚未实现的 Handler 方法
+services/order/internal/port/rpc/create_order.go        调用应用命令的 Server 方法
 ```
 
 显式 `go get` 将 gateway 运行库固定到生成插件版本，初始骨架不依赖它。
@@ -280,12 +331,13 @@ services/order/internal/port/rpc/create_order.go        尚未实现的 Handler 
 路径支持字面量和简单 `{field_name}` 参数，不支持通配符、嵌套字段或查询字符串。
 API 名使用小写连字符 slug，目标必须是已存在的生成式 v1 服务。
 
-RPC 入口先返回 gRPC `Unimplemented`；实现真实行为时编写对应测试，不生成占位测试。
-命令不推测 CQRS 用例、不修改服务注册，也不自动挂载 HTTP。
-对外开放前，在 `app.go` 中明确认证与授权，再显式挂载生成的 gateway 处理器。
+RPC 入口转换协议类型、调用注入的 CQRS 处理器，并通过 infrastructure/rpc 映射错误。
+应用层用例暂返回 Unimplemented；实现真实行为时编写对应测试，不生成占位测试。
+命令生成应用用例、处理器集合依赖、具名服务 Server 及构造/注册接线，服务 Proto 最后发布。
+对外开放前，在 `app.go` 中明确认证与授权；gateway 的 HTTP 处理器仍需显式挂载。
 OpenAPI 中存在契约并不表示 HTTP 路由已经运行。
 
-生成前会检查工程内的 Proto 符号、Handler 方法及字段、已有输出和 HTTP 路由重叠。
+生成前会检查工程内的 Proto 符号、Server 方法及字段、已有输出和 HTTP 路由重叠。
 路由判断采用保守规则，同一段的路径参数与字面量也可能重叠。
 已有内联 `google.api.http`、通配选择器、自定义方法或不支持的路径模式时会拒绝操作，
 应手工维护契约与映射，避免不完整的冲突判断。
@@ -293,7 +345,7 @@ OpenAPI 中存在契约并不表示 HTTP 路由已经运行。
 仅提供 gRPC 的操作，显式选择 --transport grpc 并省略两个 HTTP 参数：
 
 ```sh
-"$NOSTOSX" add api ping --transport grpc --service order --dir .
+"$NOSTOSX" add api ping --transport grpc --kind query --service order --context order --dir .
 task api ACTION=generate NOSTOSX="$NOSTOSX"
 go mod tidy
 ```

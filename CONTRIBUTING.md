@@ -23,7 +23,7 @@ task vulncheck
 ```
 
 `GO`, `GOFMT`, `GOLANGCI_LINT` and `GOVULNCHECK` select executables. Generated
-Taskfiles pin CLI v1.4.0; tests override `NOSTOSX` with the binary built from
+Taskfiles pin CLI v1.5.0; tests override `NOSTOSX` with the binary built from
 this checkout. Use that override when developing the CLI or its templates.
 Generated projects resolve pinned public modules. Tests use temporary files,
 loopback listeners and local model fixtures, without Docker or paid model APIs.
@@ -78,25 +78,26 @@ contracts, dependencies or composition roots. New features need an observable,
 necessary effect; avoid speculative configuration or abstractions.
 
 Native HTTP is the default. Project --transport grpc or http,grpc explicitly enables
-Proto/gRPC; add service reads the server construction shape instead of storing project metadata.
-Native HTTP APIs create only an adapter and explicit mount helper, without Buf or
-contract generation. Keep their symbol/route collision and no-overwrite checks.
+Proto/gRPC. add service reads server construction instead of persisting metadata.
 
-`add api --transport grpc|gateway` is the deliberate exception for existing contracts: parse Proto syntax
-and edit only the target v1 service's imports/RPCs. Use embedded templates for new
-messages, bindings and adapters; do not generate stub tests. Check all external HTTP bindings, package symbols
-and Handler methods/fields before writing. Reject unsupported mapping forms;
-do not infer CRUD, CQRS use cases or application authorization. Preserve user
-comments, shared-lock ownership and rollback on normal errors. Replace the target
-Proto last, after all new outputs are written. Process termination is not a
-transactional rollback guarantee.
+Services and business contexts are independent: service creation requires no context.
+Contexts declare domain/application/{command,query,port}; services own private adapter,
+application and protocol packages. New contexts/services contain no fake use cases.
 
-Domain/application code must remain independent of protobuf, gRPC and telemetry
-backends. Put consumer-owned ports beside use cases and inbound adapters in
-`services/<name>/internal/port/rpc`. Compose services explicitly in `app.go`.
-When real use cases need CQRS, use servex/cqrs with stable operation metadata;
-select contrib middleware explicitly at assembly. Do not generate fake use cases
-solely to demonstrate those dependencies.
+`add api` requires both --service and --context. It generates the context-owned Command/Query
+request, Result, Handler and constructor, plus typed service aggregate and protocol wiring.
+Stable metadata uses the context, independently of deployment naming. Named HTTP/RPC Servers
+receive Command/Query. app.go constructs handlers through CommandDeps/QueryDeps; the service-private
+application handler aggregates compose middleware once. They aggregate typed handlers without reflection,
+registration, automatic retry or a dynamic dispatcher. Keep domain/application transport-free.
+
+A second transport reuses the existing handler and chain without rewriting business behavior.
+Generated string inputs and empty results support automatic mapping; customized types, results,
+constructor dependencies and assembly shapes require explicit wiring. Configure authorization
+and gateway HTTP mounting explicitly; monolith root service mounting remains explicit.
+Preserve offline generation, shared locks, conflicts, source confinement, cancellation, staged
+replacements and restoration of original bytes/permissions on normal errors; publish Proto last.
+Process termination is not a transactional rollback guarantee. Do not generate stub tests.
 
 `api scaffold` compiles bounded local Proto inputs offline, adds missing unary
 methods and preserves matching implementations. Reject unsupported signatures,

@@ -3,10 +3,10 @@ module [[.Module]]
 go 1.27.3
 
 require (
-[[if .Agent]]	github.com/nostosx/agentx v1.2.1
-	github.com/nostosx/agentx-contrib/provider v1.2.0
+[[if .Agent]]	github.com/nostosx/agentx v1.3.0
+	github.com/nostosx/agentx-contrib/provider v1.3.0
 [[end]]	github.com/nostosx/servex v1.4.0
-	github.com/nostosx/servex-contrib/config/viper v1.0.0
+	github.com/nostosx/servex-contrib/config/viper v1.0.1
 	github.com/nostosx/servex-contrib/logger/zap v1.0.0
 [[if .GRPC]]	github.com/nostosx/servex-contrib/transport/grpcx v1.3.0
 [[end]][[if .HTTP]]	github.com/nostosx/servex-contrib/transport/httpx v1.0.0
@@ -33,10 +33,8 @@ require (
 	go.uber.org/multierr v1.10.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 [[if .GRPC]]	golang.org/x/net v0.60.0 // indirect
-[[end]][[if (not .GRPC)]]	golang.org/x/sys v0.29.0 // indirect
-[[end]][[if .GRPC]]	golang.org/x/sys v0.48.0 // indirect
-[[end]][[if (not .GRPC)]]	golang.org/x/text v0.28.0 // indirect
-[[end]][[if .GRPC]]	golang.org/x/text v0.42.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
+[[end]]	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
+[[if .GRPC]]	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 [[end]])

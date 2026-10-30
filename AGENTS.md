@@ -30,21 +30,31 @@ GOWORK=off; load relevant Go CLI, layout and testing skills when available.
   Preserve no-overwrite behavior, root confinement, cancellation,
   exclusive additions and rollback of owned outputs.
 - Default transport is native HTTP; --transport grpc or http,grpc explicitly enables Proto/gRPC.
-  add service inherits configured transports, adds only their adapters and does not rewrite files.
-  Native HTTP add api creates one adapter with explicit mounting; no Proto, generator or stub tests.
-- add api edits only the target service Proto's imports/RPCs and creates messages,
-  HTTP bindings and unimplemented adapters, without stub tests. Parse inputs, reject collisions,
-  publish the Proto last and roll back owned files on normal errors. Do not mount
-  HTTP handlers or invent CQRS use cases; authorization and assembly stay explicit.
-- Domain/application packages remain free of transport dependencies. Use narrow
-  consumer-owned ports; assemble typed servex/cqrs middleware only when needed.
+  add service inherits configured transports and adds only their adapters.
+- Services and business contexts are independent. add service requires no same-name
+  context and generates private adapter, application handler aggregates and named HTTP/RPC Servers.
+  add context declares application/{command,query,port} plus domain packages only.
+- add api requires --context and --service; use cases and stable operation names belong
+  to the context, contracts and transport servers belong to the service. Generate one
+  Command/Query request and Handler/constructor per use case. Constructors return typed CQRS interfaces.
+- services/<name>/internal/application owns Command/Query and ChainCommand/ChainQuery;
+  these are explicit typed handler aggregates, never dynamic dispatchers or registries.
+  Service app.go constructs dependencies and supplies CommandDeps/QueryDeps once; named Servers receive
+  both handler aggregates and perform protocol conversion. Keep mapping code at the protocol boundary.
+- HTTP/gateway defaults GET=query and other methods=command; --kind overrides intent and
+  is required for pure gRPC. Share a aggregate field and chain across transports of the same
+  service/context/name/kind, preserving business code and existing constructor dependencies.
+- Keep root service mounting, authentication/authorization and gateway HTTP mounting explicit.
+  Do not invent repositories, migrations, business port methods or concrete adapters.
+  Preserve locking, collision checks, bounded input, cancellation and ordinary-error rollback
+  of new outputs and replaced bytes/permissions. Publish the service Proto last.
 - Preserve literal-loopback transport defaults, authenticated gRPC, safe errors,
   cancellation and bounded agent execution. Model endpoints are trusted startup
   configuration; business tools and their authorization are explicitly supplied.
 - Contract commands accept no contracts without requiring Buf. For contracts,
   use pinned generators and shared .nostosx.lock; verify drift and failure isolation.
   Keep the Go build implementation in the CLI; do not emit tool source or Python.
-- api scaffold fills missing unary Handler methods from local Proto descriptors;
+- api scaffold fills missing unary named Server methods from local Proto descriptors;
   preserve matching implementations and reject incompatible signatures or streams.
   doctor reads project files and trusted tool versions, without installing tools,
   fetching modules or writing files. Its JSON stdout must stay machine-readable.
@@ -54,8 +64,8 @@ GOWORK=off; load relevant Go CLI, layout and testing skills when available.
   with isolated loopback messaging fixtures in CLI acceptance only.
 - Do not initialize Git, commit, push, tag or publish unless explicitly requested.
 
-Contracts: api/proto/<context>/v1/; output: api/gen/go/; HTTP bindings:
-api/http/routes/<context>.yaml; operation options: api/http/operations/<context>.yaml.
+Contracts: api/proto/<service>/v1/; output: api/gen/go/; HTTP bindings:
+api/http/routes/<service>.yaml; operation options: api/http/operations/<service>.yaml.
 OpenAPI output uses Swagger 2. Inbound adapters: services/<name>/internal/port/{http,rpc}/.
 Use action-and-object use-case filenames, matching tests and stable CQRS metadata
 when implementing actual business behavior. Do not invent use cases for new contexts.

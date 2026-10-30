@@ -7,8 +7,8 @@ generator binary.
 
 Before publication:
 
-1. Verify published servex v1.4.0, grpcx v1.3.0, agentx v1.2.1 and provider
-   v1.2.0 dependencies and checksums through the public Go proxy, without sibling
+1. Verify published servex v1.4.0, grpcx v1.3.0, agentx v1.3.0 and provider
+   v1.3.0 dependencies and checksums through the public Go proxy, without sibling
    replacements or development proxies. Confirm repository ownership, the `github.com/nostosx/nostosx-cli` module
    path, the `nostosx` executable name and a private security-reporting channel.
 2. Run `task check INTEGRATION=true`, `task lint` and `task vulncheck` from an
@@ -19,7 +19,7 @@ Before publication:
    provider tests. Do not infer live-provider acceptance from fixture results.
 4. Review licenses, dependency checksums, template output, version metadata and
    changelog. Build with an explicit version, for example
-   `go build -trimpath -ldflags "-s -w -X main.version=v1.4.0" -o bin/nostosx ./cmd/nostosx`.
+   `go build -trimpath -ldflags "-s -w -X main.version=v1.5.0" -o bin/nostosx ./cmd/nostosx`.
    Verify `nostosx --version`. A tagged `go install` uses Go's module build
    metadata. Source builds can report a Go-derived module version, including a
    pseudo-version; builds without version metadata report `dev`.
@@ -46,17 +46,17 @@ cache through the public proxy and sumdb:
 
 ```sh
 GOWORK=off GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org \
-  go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.4.0
+  go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.5.0
 nostosx --version
 ```
 
 The CLI uses Go for installation and contract plugins; Buf is required when contracts
 exist. No Python or application-local generator source is needed. Generated
-Taskfiles default to CLI v1.4.0; check that this pin matches the approved release.
+Taskfiles default to CLI v1.5.0; check that this pin matches the approved release.
 For source development, use a source-built binary through the NOSTOSX override.
 
 Generated projects use published servex v1.4.0; only gRPC-enabled projects need grpcx v1.3.0. Optional
-agentx and provider use v1.2.1 and v1.2.0. Update pinned versions and checksums before independently checking
+agentx and provider use v1.3.0 and v1.3.0. Update pinned versions and checksums before independently checking
 consumers. Do not move any existing published tags.
 
 Contract changes also require Buf 1.72.0: run `task api ACTION=lint`,

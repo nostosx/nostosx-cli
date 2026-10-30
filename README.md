@@ -1,8 +1,12 @@
 # nostosx-cli
 
-CLI v1.4.0 generates projects using published servex v1.4.0 and independent
+CLI v1.5.0 generates projects using published servex v1.4.0 and independent
 contrib HTTP, configuration, logging and optional infrastructure modules.
 Dependencies resolve without sibling source replacements.
+
+CLI v1.5.0 adds --context, --kind and automatic typed CQRS wiring. Services and
+business contexts are independent. Existing projects require an explicit source
+migration; updating the generator does not rewrite application code.
 
 The `nostosx` command creates a clean Go project and adds contexts and services
 as the application grows. Choose a monolith or a service monorepo, with optional
@@ -22,17 +26,17 @@ Runnable library examples are maintained in
 With Go **1.27.3** or later:
 
 ```sh
-go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.4.0
+go install github.com/nostosx/nostosx-cli/cmd/nostosx@v1.5.0
 nostosx --version
 export NOSTOSX="$(command -v nostosx)"
 ```
 
 Ensure Go's binary installation directory is on PATH. Alternatively, download the
-archive for your OS and architecture from [v1.4.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.4.0),
+archive for your OS and architecture from [v1.5.0](https://github.com/nostosx/nostosx-cli/releases/tag/v1.5.0),
 verify it against `checksums.txt`, and place the executable on PATH.
 Project builds and contract plugins still require Go; contracts also require Buf.
 
-CLI v1.4.0 includes transport selection, native HTTP scaffolds and the Task-based
+CLI v1.5.0 includes transport selection, native HTTP scaffolds and the Task-based
 application layout described below.
 
 ## Build from source
@@ -129,7 +133,8 @@ or select business tools; application assembly supplies those explicitly.
 go run ./services/order/cmd/order -addr 127.0.0.1:8081
 ```
 
-Contexts only declare domain/application packages, without invented use cases or persistence.
+Contexts declare domain/application/{command,query,port} packages, without invented business or persistence.
+Services can be created before any context; service names and business context names are independent.
 Services inherit enabled transports from the server constructors, adding app.go, private adapters and a standalone entry.
 Both process entries parse configuration, create a signal context and call `Run(ctx, cfg)`.
 The monolith imports the root application package; standalone entries import their service.
@@ -209,19 +214,72 @@ generated configurations need a `Values config.Reader` field with `json:"-"` and
 `result.Values = loaded.Snapshot()` in Load first; the CLI reports this prerequisite
 before writing service files. Applications adopting the new configuration template
 must also pass defaultPath between name and args in config.Load calls.
-Existing composition roots are always edited manually.
+Service additions preserve existing assembly; add api updates the target service CQRS wiring.
 
 ## Add a native HTTP operation
 
 ```sh
-"$NOSTOSX" add api get-order --service order --method GET --path '/v1/orders/{order_id}'
+"$NOSTOSX" add api get-order --service order --context order --method GET --path '/v1/orders/{order_id}'
 ```
 
-The default --transport http creates only services/order/internal/port/http/get_order.go: request/response types,
-Handler.GetOrder and RegisterGetOrder. Path parameters start as strings; choose final payload types for the application.
-Implement authorization, mapping and the application call, then explicitly call RegisterGetOrder(server, handler) from the HTTP package's Register.
-No Proto, OpenAPI, stub tests or business use cases are generated. No contract generation or automatic mounting occurs.
-Duplicate symbols, existing files and recognizable static HTTP route overlaps are rejected before writing; maintain dynamic routes manually.
+The default `--transport http` generates the application use case, aggregate wiring and protocol adapter together.
+`--context` is required independently of `--service`. For example:
+
+```sh
+"$NOSTOSX" add service studio --dir .
+"$NOSTOSX" add context creation --dir .
+"$NOSTOSX" add api create-profile --service studio --context creation --method POST --path /profiles
+"$NOSTOSX" add api get-profile --service studio --context creation --method GET --path '/profiles/{id}'
+```
+
+```text
+application/creation/
+  command/create_profile.go       CreateProfileCommand, Result, Handler and constructor
+  query/get_profile.go            GetProfileQuery, Result, Handler and constructor
+  port/                           consumer-owned outbound interfaces
+services/studio/
+  app.go                          constructs dependencies and injects handler aggregates
+  internal/application/
+    command.go                    typed Command, dependencies and ChainCommand
+    query.go                      typed Query, dependencies and ChainQuery
+  internal/port/http/
+    server.go                     StudioServer, constructor and route mounting
+    create_profile.go             protocol conversion and commands.CreateProfile.Handle
+    get_profile.go                protocol conversion and queries.GetProfile.Handle
+    mapper.go                     application/result conversion boundary
+  internal/adapter/               service-private implementations
+```
+
+Command and Query fields are typed handlers, without dynamic registration or reflection. Business handlers belong to the
+selected context, and operation metadata is `creation.create_profile`, independent of service naming.
+Each handler and chain is constructed once per service assembly and shared by its HTTP/gRPC adapters.
+`app.go` supplies handlers through CommandDeps/QueryDeps; middleware belongs in the service application handler aggregates.
+New contexts and services contain no fake business or repositories. Add outbound ports and constructor
+parameters when needed; adapters implement those capabilities and stay private to the owning service.
+
+Choose `--kind command|query`; HTTP/gateway defaults GET=query and other methods=command, with explicit override.
+Pure gRPC requires `--kind`. The application handler initially returns Unimplemented and honors cancellation;
+implement business behavior there and configure authentication/authorization in service assembly.
+Mount the service in root app.go explicitly when using a monolith. Gateway HTTP mounting stays explicit.
+
+Adding a second transport for the same service/context/name/kind preserves business implementation and shares
+the existing aggregate field and chain. Automatic mapping supports generated string inputs and an empty result;
+custom types/results or constructors requiring new dependencies need explicit application wiring.
+Native HTTP needs no Proto, OpenAPI, stub tests or contract tools. Generation remains offline.
+Conflicts in contracts, application types, handler aggregates, imports and assembly are rejected before publication.
+Normal errors restore original bytes/permissions and remove owned outputs; publish the service Proto last.
+Custom aggregate/constructor/registration shapes and dynamic routes require manual wiring.
+
+## Migrate an existing generated service
+
+This layout change does not rewrite previously generated applications automatically.
+Keep contracts under the deployable service name and move application ownership explicitly:
+
+1. Pass --context on each add api invocation; it no longer follows --service.
+2. Add service-private Command/Query, supply existing handlers through CommandDeps/QueryDeps and move CQRS chains into those handler aggregates.
+3. Replace direct Handler dependency fields with a named service Server receiving both handler aggregates; keep protocol conversion in mapper.go.
+4. Give application requests Command/Query names and expose explicit constructors returning typed Servex CQRS interfaces.
+5. Keep existing business constructor dependencies, middleware, authorization and lifecycle ownership intact; do not regenerate over application files.
 
 ## Build optional Proto contracts
 
@@ -244,7 +302,7 @@ compares paths and content without changing published output. `api lint` runs
 Buf lint; `api breaking` requires an explicit Buf baseline. All four commands
 share the additions lock. Plugins must succeed before output is replaced.
 
-Generated Taskfiles call CLI v1.4.0 through `go run`, without adding it to the
+Generated Taskfiles call CLI v1.5.0 through `go run`, without adding it to the
 application module. To use a source-built binary, run
 `task api ACTION=generate NOSTOSX="$NOSTOSX"`, then `task api NOSTOSX="$NOSTOSX"`.
 `NOSTOSX_VERSION` selects another reviewed release. For a local binary, set
@@ -257,8 +315,8 @@ commands are not a sandbox. Go plugins may access the network and module cache.
 After creating a context and service, add an operation explicitly:
 
 ```sh
-"$NOSTOSX" add api create-order --transport gateway --service order --method POST --path /v1/orders --dir .
-"$NOSTOSX" add api get-order --transport gateway --service order --method GET --path '/v1/orders/{order_id}' --dir .
+"$NOSTOSX" add api create-order --transport gateway --service order --context order --method POST --path /v1/orders --dir .
+"$NOSTOSX" add api get-order --transport gateway --service order --context order --method GET --path '/v1/orders/{order_id}' --dir .
 task api ACTION=generate NOSTOSX="$NOSTOSX"
 go get github.com/grpc-ecosystem/grpc-gateway/v2@v2.29.0
 go mod tidy
@@ -272,7 +330,7 @@ creates three files:
 ```text
 api/proto/order/v1/create_order.proto                 request and response messages
 api/http/routes/order_create_order.yaml                HTTP binding
-services/order/internal/port/rpc/create_order.go        unimplemented Handler method
+services/order/internal/port/rpc/create_order.go        Server method calling the application command
 ```
 
 The explicit `go get` pins the gateway runtime to the generator version. The
@@ -287,12 +345,12 @@ segments and simple `{field_name}` parameters, not wildcards, nested fields or
 query strings. API names use lowercase hyphenated slugs; the target must be an
 existing generated v1 service.
 
-The adapter returns gRPC `Unimplemented` until implemented. Add application behavior tests when implementing it; no stub test is generated. The command does not create
-CQRS use cases, mount HTTP handlers or change service registration. Define
-authorization and explicitly mount the generated gateway handlers in `app.go`
-before exposing HTTP. An OpenAPI entry documents a contract, not a running route.
+The RPC adapter converts protocol types, calls its injected CQRS handler and maps errors through infrastructure/rpc.
+The application use case initially returns Unimplemented; add behavior tests when implementing it, without generated stub tests.
+The command creates the application handler, aggregate dependency, named service Server and constructor/registration wiring, publishing the service Proto last.
+Configure authentication and authorization in assembly. Mount gateway HTTP handlers explicitly; an OpenAPI entry does not create a running route.
 
-Duplicate Proto symbols, Handler methods/fields, existing output files and
+Duplicate Proto symbols, Server methods/fields, existing output files and
 overlapping HTTP routes are rejected across the project. The check is conservative:
 a parameter and a literal in the same segment can overlap. Existing inline
 `google.api.http`, wildcard/custom mappings or unsupported path patterns require
@@ -301,7 +359,7 @@ manual editing; the command refuses to guess their interaction with YAML binding
 For a gRPC-only operation, select --transport grpc and omit both HTTP flags:
 
 ```sh
-"$NOSTOSX" add api ping --transport grpc --service order --dir .
+"$NOSTOSX" add api ping --transport grpc --kind query --service order --context order --dir .
 task api ACTION=generate NOSTOSX="$NOSTOSX"
 go mod tidy
 ```

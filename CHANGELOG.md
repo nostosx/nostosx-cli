@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v1.5.0 - 2026-10-31
+
+- Pin published agentx/provider v1.3.0 and config/viper v1.0.1 in generated applications; refresh real checksums and use patched x/sys/x/text baselines for every transport.
+
+- **Breaking (generated layout):** Separate deployable services from business contexts. Services no longer require a same-name context. add api requires --context; operation metadata and application paths use that context.
+- Generate Command/Query requests and interface-returning constructors, service-private typed Command/Query, named protocol Servers, mapper boundaries, application ports and service-private adapters. Keep handler construction in app.go and middleware chains in service handler aggregates, shared across HTTP/gRPC.
+- Preserve offline generation, conflict detection, staged rollback and application-owned authorization. Restore canonical application error codes at RPC boundaries without exposing backend details.
+
 ## v1.4.0 - 2026-10-29
 
 - **Breaking (generated templates):** Use TOML process configuration. Monoliths
