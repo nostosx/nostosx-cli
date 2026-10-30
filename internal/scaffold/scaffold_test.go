@@ -216,8 +216,8 @@ func TestAddPreservesFilesAndRollsBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := snapshot(t, o.Output)
-	if err := scaffold.Add(t.Context(), o.Output, "service", "order"); err == nil {
-		t.Fatal("service accepted missing context")
+	if err := scaffold.Add(t.Context(), o.Output, "service", "studio"); err != nil {
+		t.Fatal(err)
 	}
 	if err := scaffold.Add(t.Context(), o.Output, "context", "order"); err != nil {
 		t.Fatal(err)
@@ -229,7 +229,7 @@ func TestAddPreservesFilesAndRollsBack(t *testing.T) {
 	for _, name := range []string{
 		"application/order/query/doc.go",
 		"domain/order/doc.go",
-		"services/order/internal/port/http/handler.go",
+		"services/order/internal/port/http/server.go",
 		"services/order/config/config.toml",
 	} {
 		if _, ok := after[name]; !ok {

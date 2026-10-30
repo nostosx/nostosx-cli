@@ -1,0 +1,22 @@
+// Package http maps protocol requests to the service application handler aggregates.
+package http
+
+import (
+ "github.com/nostosx/servex-contrib/transport/httpx"
+
+ serviceapp "[[.Module]]/services/[[.Service]]/internal/application"
+)
+
+// [[.ServiceType]]Server owns protocol conversion, not application behavior.
+type [[.ServiceType]]Server struct {
+
+ commands *serviceapp.Command
+ queries *serviceapp.Query
+}
+
+func New[[.ServiceType]]Server(commands *serviceapp.Command, queries *serviceapp.Query) *[[.ServiceType]]Server {
+ return &[[.ServiceType]]Server{commands: commands, queries: queries}
+}
+
+// Register mounts HTTP operations after service authorization is configured.
+func Register(server *httpx.Server, handler *[[.ServiceType]]Server) {}

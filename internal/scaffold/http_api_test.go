@@ -30,16 +30,16 @@ func TestNativeHTTPNeedsNoContractTools(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	dir := httpProject(t)
 	before := snapshot(t, dir)
-	o := scaffold.APIOptions{Name: "get-order", Service: "order", Method: "GET", Path: "/v1/orders/{order_id}"}
+	o := scaffold.APIOptions{Context: "order", Name: "get-order", Service: "order", Method: "GET", Path: "/v1/orders/{order_id}"}
 	if err := scaffold.AddAPI(t.Context(), dir, o); err != nil {
 		t.Fatal(err)
 	}
 	after := snapshot(t, dir)
-	if len(after) != len(before)+1 {
-		t.Fatalf("expected one adapter, got %d files", len(after)-len(before))
+	if len(after) != len(before)+2 {
+		t.Fatalf("expected adapter and application use case, got %d files", len(after)-len(before))
 	}
 	for name, content := range before {
-		if after[name] != content {
+		if after[name] != content && name != "services/order/app.go" && name != "services/order/internal/port/http/server.go" && name != "services/order/internal/application/query.go" && name != "services/order/internal/port/http/mapper.go" {
 			t.Fatalf("rewrote %s", name)
 		}
 	}
@@ -78,8 +78,8 @@ func TestNativeHTTPNeedsNoContractTools(t *testing.T) {
 func TestNativeHTTPRejectsConflictsBeforeWriting(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, file, code string }{
-		{"method", "handler.go", "package http\ntype Handler struct{}\nfunc (*Handler) GetOrder() {}"},
-		{"field", "handler.go", "package http\ntype Handler struct{ GetOrder string }"},
+		{"method", "server.go", "package http\ntype OrderServer struct{}\nfunc (*OrderServer) GetOrder() {}"},
+		{"field", "server.go", "package http\ntype OrderServer struct{ GetOrder string }"},
 		{"request type", "other.go", "package http\ntype GetOrderRequest struct{}"},
 		{"response type", "other.go", "package http\ntype GetOrderResponse struct{}"},
 		{"request value", "other.go", "package http\nvar GetOrderRequest int"},
@@ -94,7 +94,7 @@ func TestNativeHTTPRejectsConflictsBeforeWriting(t *testing.T) {
 				t.Fatal(err)
 			}
 			before := snapshot(t, dir)
-			err := scaffold.AddAPI(t.Context(), dir, scaffold.APIOptions{Name: "get-order", Service: "order", Method: "GET", Path: "/v1/orders/{order_id}"})
+			err := scaffold.AddAPI(t.Context(), dir, scaffold.APIOptions{Context: "order", Name: "get-order", Service: "order", Method: "GET", Path: "/v1/orders/{order_id}"})
 			if err == nil {
 				t.Fatal("accepted conflict")
 			}
@@ -111,7 +111,7 @@ func TestNativeAndGatewayRoutesCannotOverlap(t *testing.T) {
 		t.Run(first, func(t *testing.T) {
 			t.Parallel()
 			dir := apiProject(t)
-			op := scaffold.APIOptions{Name: "first-operation", Service: "order", Transport: first, Method: "GET", Path: "/v1/orders/{id}"}
+			op := scaffold.APIOptions{Context: "order", Name: "first-operation", Service: "order", Transport: first, Method: "GET", Path: "/v1/orders/{id}"}
 			if err := scaffold.AddAPI(t.Context(), dir, op); err != nil {
 				t.Fatal(err)
 			}
@@ -148,15 +148,15 @@ func TestTransportSelection(t *testing.T) {
 				}
 			}
 			files := snapshot(t, o.Output)
-			_, http := files["services/order/internal/port/http/handler.go"]
-			_, grpc := files["services/order/internal/port/rpc/handler.go"]
+			_, http := files["services/order/internal/port/http/server.go"]
+			_, grpc := files["services/order/internal/port/rpc/server.go"]
 			if http != (transport != "grpc") || grpc != strings.Contains(transport, "grpc") {
 				t.Fatal("service did not inherit transports")
 			}
 			if !grpc {
 				for _, mode := range []string{"grpc", "gateway"} {
 					before := snapshot(t, o.Output)
-					api := scaffold.APIOptions{Name: "ping", Service: "order", Transport: mode}
+					api := scaffold.APIOptions{Context: "order", Name: "ping", Service: "order", Transport: mode}
 					if mode == "gateway" {
 						api.Method = "GET"
 						api.Path = "/ping"

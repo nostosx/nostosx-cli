@@ -17,12 +17,12 @@ func TestAddGRPCOnlyAPI(t *testing.T) {
 	t.Parallel()
 	dir := apiProject(t)
 	before := snapshot(t, dir)
-	if err := scaffold.AddAPI(t.Context(), dir, scaffold.APIOptions{Name: "ping", Transport: "grpc", Service: "order"}); err != nil {
+	if err := scaffold.AddAPI(t.Context(), dir, scaffold.APIOptions{Context: "order", Name: "ping", Transport: "grpc", Kind: "query", Service: "order"}); err != nil {
 		t.Fatal(err)
 	}
 	after := snapshot(t, dir)
-	if len(after) != len(before)+2 {
-		t.Fatalf("expected two new files, got %d", len(after)-len(before))
+	if len(after) != len(before)+3 {
+		t.Fatalf("expected contract, adapter and use case, got %d", len(after)-len(before))
 	}
 	for name, content := range before {
 		if strings.HasPrefix(name, "api/http/") && after[name] != content {
@@ -30,8 +30,8 @@ func TestAddGRPCOnlyAPI(t *testing.T) {
 		}
 	}
 	for _, options := range []scaffold.APIOptions{
-		{Name: "pong", Transport: "gateway", Service: "order", Method: "GET"},
-		{Name: "pong", Transport: "grpc", Service: "order", Path: "/pong"},
+		{Context: "order", Name: "pong", Transport: "gateway", Service: "order", Method: "GET"},
+		{Context: "order", Name: "pong", Transport: "grpc", Kind: "query", Service: "order", Path: "/pong"},
 	} {
 		if err := scaffold.AddAPI(t.Context(), dir, options); err == nil {
 			t.Fatal("accepted incomplete HTTP binding")
@@ -87,7 +87,7 @@ import (
  "` + module + `/api/gen/go/order/v1"
  "google.golang.org/protobuf/types/known/emptypb"
 )
-func (*Handler) Fetch(ctx.Context, *orderv1.Envelope_Payload) (*emptypb.Empty, error) {
+func (*OrderServer) Fetch(ctx.Context, *orderv1.Envelope_Payload) (*emptypb.Empty, error) {
  return &emptypb.Empty{}, nil
 }
 `
@@ -107,11 +107,11 @@ func TestScaffoldRPCRejectsUnsafeInputsBeforeWriting(t *testing.T) {
 		{"stream", "rpc Fetch(google.protobuf.Empty) returns (stream Envelope.Payload);", "", ""},
 		{"syntax", "invalid", "", ""},
 		{"filename", "rpc Fetch(google.protobuf.Empty) returns (Envelope.Payload);", "fetch.go", "package rpc\n"},
-		{"signature", "rpc Fetch(google.protobuf.Empty) returns (Envelope.Payload);", "existing.go", "package rpc\nfunc (*Handler) Fetch() {}\n"},
-		{"field", "rpc Fetch(google.protobuf.Empty) returns (Envelope.Payload);", "handler.go", "package rpc\ntype Handler struct {Fetch string}\n"},
+		{"signature", "rpc Fetch(google.protobuf.Empty) returns (Envelope.Payload);", "existing.go", "package rpc\nfunc (*OrderServer) Fetch() {}\n"},
+		{"field", "rpc Fetch(google.protobuf.Empty) returns (Envelope.Payload);", "server.go", "package rpc\ntype OrderServer struct {Fetch string}\n"},
 		{"build constraints", "rpc Fetch(google.protobuf.Empty) returns (Envelope.Payload);", "existing.go", "//go:build windows\n\npackage rpc\n"},
 		{"platform file", "rpc Fetch(google.protobuf.Empty) returns (Envelope.Payload);", "existing_windows.go", "package rpc\n"},
-		{"generic handler", "rpc Fetch(google.protobuf.Empty) returns (Envelope.Payload);", "handler.go", "package rpc\ntype Handler[T any] struct {}\n"},
+		{"generic handler", "rpc Fetch(google.protobuf.Empty) returns (Envelope.Payload);", "server.go", "package rpc\ntype OrderServer[T any] struct {}\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

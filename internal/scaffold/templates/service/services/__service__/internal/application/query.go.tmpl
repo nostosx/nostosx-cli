@@ -1,0 +1,12 @@
+// Package application assembles the service's typed application handlers.
+package application
+
+// Query aggregates query handlers; it does not dispatch dynamically.
+type Query struct {}
+
+// QueryDeps supplies handlers constructed by the composition root.
+type QueryDeps struct {}
+
+func NewQuery(deps QueryDeps) *Query {
+ return &Query{}
+}

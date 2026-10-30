@@ -192,13 +192,13 @@ func checkNamedAdapter(ctx context.Context, root *os.Root, service, rpc string) 
 		for _, decl := range file.Decls {
 			switch n := decl.(type) {
 			case *goast.FuncDecl:
-				if n.Recv != nil && receiverName(n.Recv.List[0].Type) == "Handler" && n.Name.Name == rpc {
+				if n.Recv != nil && receiverName(n.Recv.List[0].Type) == serviceType(service)+"Server" && n.Name.Name == rpc {
 					return fmt.Errorf("handler method %s already exists", rpc)
 				}
 			case *goast.GenDecl:
 				for _, spec := range n.Specs {
 					typeSpec, ok := spec.(*goast.TypeSpec)
-					if !ok || typeSpec.Name.Name != "Handler" {
+					if !ok || typeSpec.Name.Name != serviceType(service)+"Server" {
 						continue
 					}
 					if typeSpec.TypeParams != nil {
@@ -228,7 +228,7 @@ func checkNamedAdapter(ctx context.Context, root *os.Root, service, rpc string) 
 		return returnErr
 	}
 	if !found {
-		return errors.New("existing service must declare a Handler struct")
+		return errors.New("existing service must declare its named Server struct")
 	}
 	return nil
 }

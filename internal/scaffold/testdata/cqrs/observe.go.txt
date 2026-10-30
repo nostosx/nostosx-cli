@@ -1,0 +1,16 @@
+package application
+
+import (
+ "context"
+ "sync/atomic"
+ "example.com/cqrs/application/creation/query"
+ "github.com/nostosx/servex/cqrs"
+)
+var ObservedCalls atomic.Int64
+var ObservedAssemblies int
+var ObservedMetadata cqrs.Metadata
+func observeGetOrder(meta cqrs.Metadata,next cqrs.Handler[query.GetOrderQuery,query.GetOrderResult])cqrs.Handler[query.GetOrderQuery,query.GetOrderResult]{
+ ObservedAssemblies++
+ ObservedMetadata=meta
+ return cqrs.QueryFunc[query.GetOrderQuery,query.GetOrderResult](func(ctx context.Context,in query.GetOrderQuery)(query.GetOrderResult,error){ObservedCalls.Add(1);return next.Handle(ctx,in)})
+}

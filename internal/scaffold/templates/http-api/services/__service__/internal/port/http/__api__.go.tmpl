@@ -3,8 +3,8 @@ package http
 import (
  "context"
 
- "github.com/nostosx/servex/errorx"
  "github.com/nostosx/servex-contrib/transport/httpx"
+
 )
 
 type [[.API.RPC]]Request struct {[[range .API.Fields]]
@@ -12,12 +12,14 @@ type [[.API.RPC]]Request struct {[[range .API.Fields]]
 }
 type [[.API.RPC]]Response struct{}
 
-// [[.API.RPC]] is the HTTP boundary. Implement authorization and the application call here.
-func (*Handler) [[.API.RPC]](context.Context, *[[.API.RPC]]Request) (*[[.API.RPC]]Response, error) {
- return nil, errorx.New(errorx.Unimplemented, "NOT_IMPLEMENTED", "operation is not implemented")
+// [[.API.RPC]] translates the protocol and invokes the injected application handler.
+func (s *[[.ServiceType]]Server) [[.API.RPC]](ctx context.Context, request *[[.API.RPC]]Request) (*[[.API.RPC]]Response, error) {
+ result, err := s.[[if eq .API.Kind "command"]]commands[[else]]queries[[end]].[[.API.Field]].Handle(ctx, map[[.API.RPC]]Request(request))
+ if err != nil { return nil, err }
+ return map[[.API.RPC]]Response(result), nil
 }
 
-// Register[[.API.RPC]] mounts this operation. Call it explicitly after configuring authorization.
-func Register[[.API.RPC]](server *httpx.Server, handler *Handler) {
+// Register[[.API.RPC]] mounts this operation. Configure authorization in service assembly.
+func Register[[.API.RPC]](server *httpx.Server, handler *[[.ServiceType]]Server) {
  httpx.RouteFunc(server, "[[.API.Method]] [[.API.Path]]", handler.[[.API.RPC]])
 }

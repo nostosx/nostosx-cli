@@ -18,7 +18,7 @@ import (
 	"github.com/nostosx/nostosx-cli/internal/projectfs"
 )
 
-// ScaffoldRPC fills missing unary Handler methods from a local v1 contract.
+// ScaffoldRPC fills missing unary service Server methods from a local v1 contract.
 // It never executes tools, rewrites implementations or creates business use cases.
 // Imports must be local to api/proto or standard Protobuf well-known types.
 func ScaffoldRPC(ctx context.Context, dir, service string) (created []string, err error) {
@@ -43,7 +43,7 @@ func ScaffoldRPC(ctx context.Context, dir, service string) (created []string, er
 	for _, file := range plugin.Files {
 		packageNames[string(file.GoImportPath)] = string(file.GoPackageName)
 	}
-	methods, err := handlerMethods(ctx, root, adapter, packageNames)
+	methods, err := handlerMethods(ctx, root, adapter, serviceType(service)+"Server", packageNames)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func ScaffoldRPC(ctx context.Context, dir, service string) (created []string, er
 			}
 			continue
 		}
-		// Reuse field, package and Handler validation before generating a method.
+		// Reuse field, package and Server validation before generating a method.
 		if err := checkNamedAdapter(ctx, root, service, method.GoName); err != nil {
 			return nil, err
 		}
@@ -77,7 +77,7 @@ func ScaffoldRPC(ctx context.Context, dir, service string) (created []string, er
 		g := plugin.NewGeneratedFile(name, protogen.GoImportPath(module+"/"+adapter))
 		g.P("package rpc")
 		g.P("// ", method.GoName, " is the transport entry point. Implement authorization and the application call here.")
-		g.P("func (*Handler) ", method.GoName, "(", protogen.GoIdent{GoName: "Context", GoImportPath: "context"}, ", *", method.Input.GoIdent, ") (*", method.Output.GoIdent, ", error) {")
+		g.P("func (*", serviceType(service), "Server) ", method.GoName, "(", protogen.GoIdent{GoName: "Context", GoImportPath: "context"}, ", *", method.Input.GoIdent, ") (*", method.Output.GoIdent, ", error) {")
 		g.P("return nil, ", protogen.GoIdent{GoName: "Error", GoImportPath: "google.golang.org/grpc/status"}, "(", protogen.GoIdent{GoName: "Unimplemented", GoImportPath: "google.golang.org/grpc/codes"}, ", \"NOT_IMPLEMENTED\")")
 		g.P("}")
 		content, err := g.Content()

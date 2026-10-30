@@ -29,7 +29,7 @@ func apiProject(t *testing.T) string {
 }
 
 func apiOptions() scaffold.APIOptions {
-	return scaffold.APIOptions{Name: "create-order", Transport: "gateway", Service: "order", Method: "POST", Path: "/v1/orders/{order_id}"}
+	return scaffold.APIOptions{Context: "order", Name: "create-order", Transport: "gateway", Service: "order", Method: "POST", Path: "/v1/orders/{order_id}"}
 }
 
 func TestAddAPI(t *testing.T) {
@@ -54,7 +54,7 @@ func TestAddAPI(t *testing.T) {
 		}
 	}
 	for name, content := range before {
-		if name != "api/proto/order/v1/order.proto" && read(t, filepath.Join(dir, name)) != content {
+		if name != "api/proto/order/v1/order.proto" && name != "services/order/app.go" && name != "services/order/internal/port/rpc/server.go" && name != "services/order/internal/application/command.go" && name != "services/order/internal/port/rpc/mapper.go" && read(t, filepath.Join(dir, name)) != content {
 			t.Fatalf("changed existing %s", name)
 		}
 	}
@@ -66,14 +66,14 @@ func TestAddAPI(t *testing.T) {
 		t.Fatal("missing request body mapping")
 	}
 	// Multiple additions retain a valid service and use separate files.
-	next := scaffold.APIOptions{Name: "get-order", Transport: "gateway", Service: "order", Method: "GET", Path: "/v1/orders/{id}"}
+	next := scaffold.APIOptions{Context: "order", Name: "get-order", Transport: "gateway", Service: "order", Method: "GET", Path: "/v1/orders/{id}"}
 	if err := scaffold.AddAPI(t.Context(), dir, next); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(read(t, filepath.Join(dir, "api/http/routes/order_get_order.yaml")), "body:") {
 		t.Fatal("GET received a body binding")
 	}
-	if len(snapshot(t, dir)) != len(before)+6 {
+	if len(snapshot(t, dir)) != len(before)+8 {
 		t.Fatal("unexpected output count or temporary files left behind")
 	}
 }
@@ -96,7 +96,7 @@ func TestAPIValidation(t *testing.T) {
 		{"create", "order", "GET", "/{id}/{id}"},
 		{"create", "order", "GET", "/{nested.field}"},
 	} {
-		o := scaffold.APIOptions{Name: tc.name, Transport: "gateway", Service: tc.service, Method: tc.method, Path: tc.path}
+		o := scaffold.APIOptions{Context: "order", Name: tc.name, Transport: "gateway", Service: tc.service, Method: tc.method, Path: tc.path}
 		if err := o.Validate(); err == nil {
 			t.Errorf("accepted %+v", o)
 		}
@@ -134,8 +134,8 @@ func TestAPIConflictsLeaveProjectUnchanged(t *testing.T) {
 		{"invalid Proto", "api/proto/order/v1/order.proto", "\nmessage Broken {", "", ""},
 		{"wrong package", "api/proto/order/v1/order.proto", "", "package order.v1;", "package renamed.v1;"},
 		{"inline HTTP", "api/proto/order/v1/order.proto", "", "service OrderService {}", "service OrderService { rpc Other(OldRequest) returns (OldResponse) { option (google.api.http) = {get: \"/elsewhere\"}; }}"},
-		{"adapter method", "services/order/internal/port/rpc/handler.go", "\nfunc (*Handler) CreateOrder() {}", "", ""},
-		{"adapter field", "services/order/internal/port/rpc/handler.go", "", "struct {", "struct { CreateOrder string;"},
+		{"adapter method", "services/order/internal/port/rpc/server.go", "\nfunc (*OrderServer) CreateOrder() {}", "", ""},
+		{"adapter field", "services/order/internal/port/rpc/server.go", "", "struct {", "struct { CreateOrder string;"},
 		{"route parameters", "api/http/routes/other.yaml", "- selector: other.v1.Other.Create\n  post: /v1/orders/{name}\n", "", ""},
 		{"route literal overlap", "api/http/routes/other.yaml", "- selector: other.v1.Other.Create\n  post: /v1/orders/latest\n", "", ""},
 		{"selector", "api/http/routes/other.yaml", "- selector: order.v1.OrderService.CreateOrder\n  get: /other\n", "", ""},

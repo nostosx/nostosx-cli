@@ -176,11 +176,7 @@ func Add(ctx context.Context, dir, kind, name string) (err error) {
 	if err != nil {
 		return err
 	}
-	if kind == "service" {
-		if _, err := root.Stat("application/" + contextName + "/doc.go"); err != nil {
-			return fmt.Errorf("service requires a context created with 'add context %s': %w", contextName, err)
-		}
-	}
+
 	o := Options{Module: modulePath}
 	if kind == "service" {
 		o.Transport, err = projectTransport(root)
@@ -341,7 +337,7 @@ func render(group string, d data) (map[string][]byte, error) {
 				return nil
 			}
 		}
-		rel = strings.NewReplacer("__context__", d.Context, "__service__", d.Service, "__api__", d.API.File).Replace(rel)
+		rel = strings.NewReplacer("__context__", d.Context, "__service__", d.Service, "__api__", d.API.File, "__kind__", d.API.Kind).Replace(rel)
 		b, err := templates.ReadFile(name)
 		if err != nil {
 			return err

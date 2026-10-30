@@ -1,0 +1,12 @@
+// Package application assembles the service's typed application handlers.
+package application
+
+// Command aggregates command handlers; it does not dispatch dynamically.
+type Command struct {}
+
+// CommandDeps supplies handlers constructed by the composition root.
+type CommandDeps struct {}
+
+func NewCommand(deps CommandDeps) *Command {
+ return &Command{}
+}

@@ -60,7 +60,7 @@ func TestContractGenerationSafety(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := scaffold.AddAPI(t.Context(), o.Output, scaffold.APIOptions{Name: "get-order", Transport: "gateway", Service: "order", Method: "GET", Path: "/v1/orders/{order_id}"}); err != nil {
+	if err := scaffold.AddAPI(t.Context(), o.Output, scaffold.APIOptions{Context: "order", Name: "get-order", Transport: "gateway", Service: "order", Method: "GET", Path: "/v1/orders/{order_id}"}); err != nil {
 		t.Fatal(err)
 	}
 	openapi := filepath.Join(o.Output, "api/http/openapi.yaml")

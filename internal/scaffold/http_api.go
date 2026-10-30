@@ -36,7 +36,7 @@ func addHTTPAPI(ctx context.Context, root *os.Root, module string, o APIOptions)
 		for _, decl := range file.Decls {
 			switch n := decl.(type) {
 			case *ast.FuncDecl:
-				if n.Name.Name == "Register"+rpc || n.Recv != nil && receiverName(n.Recv.List[0].Type) == "Handler" && n.Name.Name == rpc {
+				if n.Name.Name == "Register"+rpc || n.Recv != nil && receiverName(n.Recv.List[0].Type) == serviceType(o.Service)+"Server" && n.Name.Name == rpc {
 					return fmt.Errorf("HTTP adapter %s already exists", n.Name.Name)
 				}
 			case *ast.GenDecl:
@@ -52,10 +52,10 @@ func addHTTPAPI(ctx context.Context, root *os.Root, module string, o APIOptions)
 						if typ.Name.Name == rpc+"Request" || typ.Name.Name == rpc+"Response" {
 							return fmt.Errorf("HTTP type %s already exists", typ.Name.Name)
 						}
-						if typ.Name.Name == "Handler" {
+						if typ.Name.Name == serviceType(o.Service)+"Server" {
 							structure, ok := typ.Type.(*ast.StructType)
 							if !ok || typ.TypeParams != nil {
-								return errors.New("HTTP Handler must be a non-generic struct")
+								return errors.New("HTTP server must be a non-generic struct")
 							}
 							found = true
 							for _, field := range structure.Fields.List {
@@ -78,7 +78,7 @@ func addHTTPAPI(ctx context.Context, root *os.Root, module string, o APIOptions)
 		return err
 	}
 	if !found {
-		return errors.New("existing service must declare an HTTP Handler struct")
+		return errors.New("existing service must declare an HTTP server struct")
 	}
 	if err := checkHTTPRoutes(ctx, root, o); err != nil {
 		return err
@@ -90,23 +90,12 @@ func addHTTPAPI(ctx context.Context, root *os.Root, module string, o APIOptions)
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	api := apiData{File: strings.ReplaceAll(o.Name, "-", "_"), RPC: rpc, Method: o.Method, Path: o.Path}
-	parts, _ := routeSegments(o.Path)
-	for _, part := range parts {
-		if strings.HasPrefix(part, "{") {
-			name := part[1 : len(part)-1]
-			var field strings.Builder
-			for p := range strings.SplitSeq(name, "_") {
-				field.WriteString(strings.ToUpper(p[:1]) + p[1:])
-			}
-			api.Fields = append(api.Fields, apiField{Name: name, GoName: field.String()})
-		}
-	}
-	files, err := render("http-api", data{Module: module, Service: o.Service, API: api})
+	api := cqrsData(o)
+	files, err := render("http-api", data{Module: module, Service: o.Service, Context: o.Context, ServiceType: serviceType(o.Service), API: api})
 	if err != nil {
 		return err
 	}
-	return writeFiles(ctx, root, files)
+	return addCQRSAPI(ctx, root, module, o, files, "", nil, nil, 0)
 }
 
 // Inspect literal native route registrations across services. Dynamic routing

@@ -1,9 +1,7 @@
 package scaffold
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -18,8 +16,8 @@ import (
 
 // APIOptions describes a native HTTP operation, RPC or gateway binding.
 type APIOptions struct {
-	Name, Service, Method, Path string
-	Transport                   string
+	Name, Service, Context, Method, Path string
+	Transport, Kind                      string
 }
 
 // Validate checks explicit API inputs without reading or writing a project.
@@ -30,10 +28,19 @@ func (o APIOptions) Validate() error {
 	if err := validateName(o.Service, true); err != nil {
 		return fmt.Errorf("service: %w", err)
 	}
+	if err := validateName(o.Context, true); err != nil {
+		return fmt.Errorf("context (required): %w", err)
+	}
 	if o.Transport != "" && o.Transport != "http" && o.Transport != "grpc" && o.Transport != "gateway" {
 		return errors.New("API transport must be http, grpc or gateway")
 	}
+	if o.Kind != "" && o.Kind != "command" && o.Kind != "query" {
+		return errors.New("kind must be command or query")
+	}
 	if o.Transport == "grpc" {
+		if o.Kind == "" {
+			return errors.New("gRPC-only APIs require --kind command or query")
+		}
 		if o.Method != "" || o.Path != "" {
 			return errors.New("gRPC-only APIs do not accept --method or --path; use --transport gateway for HTTP mapping")
 		}
@@ -66,9 +73,9 @@ func (o APIOptions) rpcName() string {
 	return out.String()
 }
 
-// AddAPI adds a native HTTP adapter or extends an explicitly selected Proto API.
-// It runs offline under the shared generator lock. HTTP mounting and business
-// implementation remain explicit application changes. Cooperative writers must
+// AddAPI adds a typed CQRS use case, transport adapter and service wiring.
+// It runs offline under the shared generator lock. Business logic and authorization
+// remain application-owned. Cooperative writers must
 // honor the lock; rollback covers normal errors, not process termination.
 func AddAPI(ctx context.Context, dir string, o APIOptions) (err error) {
 	if err := o.Validate(); err != nil {
@@ -123,56 +130,8 @@ func AddAPI(ctx context.Context, dir string, o APIOptions) (err error) {
 	if err != nil {
 		return err
 	}
-	// All output directories must already belong to the target service. This
-	// keeps rollback limited to new files and never removes application directories.
-	for name := range files {
-		if err := realParents(root, name); err != nil {
-			return err
-		}
-		if _, err := root.Lstat(name); !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("API output already exists or is inaccessible: %s", name)
-		}
-	}
-	staged := path.Join(path.Dir(protoPath), ".nostosx-api-"+rand.Text()+".tmp")
-	f, err := root.OpenFile(staged, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode.Perm())
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if cleanup := root.Remove(staged); !errors.Is(cleanup, fs.ErrNotExist) {
-			err = errors.Join(err, cleanup)
-		}
-	}()
-	_, writeErr := f.Write(updated)
-	if err := errors.Join(writeErr, f.Chmod(mode.Perm()), f.Close()); err != nil {
-		return err
-	}
-	if err := writeFiles(ctx, root, files); err != nil {
-		return err
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			for name := range files {
-				err = errors.Join(err, root.Remove(name))
-			}
-		}
-	}()
-	current, _, err := readAPIFile(root, protoPath)
-	if err != nil {
-		return err
-	}
-	if !bytes.Equal(current, original) {
-		return errors.New("service Proto changed during generation; retry after stopping other writers")
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if err := root.Rename(staged, protoPath); err != nil {
-		return err
-	}
-	committed = true
-	return nil
+	return addCQRSAPI(ctx, root, module, o, files, protoPath, original, updated, mode)
+
 }
 
 func realParents(root *os.Root, name string) error {
@@ -249,9 +208,10 @@ func scanAPIFiles(ctx context.Context, root *os.Root, dir, suffix string, visit 
 }
 
 type apiData struct {
-	File, RPC, Method, Path string
-	Body                    bool
-	Fields                  []apiField
+	File, RPC, Method, Path          string
+	Kind, KindType, Field, Operation string
+	Body                             bool
+	Fields                           []apiField
 }
 
 type apiField struct {
@@ -261,18 +221,10 @@ type apiField struct {
 }
 
 func apiFiles(module string, o APIOptions) (map[string][]byte, error) {
-	api := apiData{
-		File: strings.ReplaceAll(o.Name, "-", "_"), RPC: o.rpcName(),
-		Method: strings.ToLower(o.Method), Path: o.Path,
-		Body: o.Method == http.MethodPost || o.Method == http.MethodPut || o.Method == http.MethodPatch,
-	}
-	parts, _ := routeSegments(o.Path)
-	for _, part := range parts {
-		if strings.HasPrefix(part, "{") {
-			api.Fields = append(api.Fields, apiField{Name: part[1 : len(part)-1], Number: len(api.Fields) + 1})
-		}
-	}
-	files, err := render("api", data{Module: module, Service: o.Service, ServiceType: strings.ToUpper(o.Service[:1]) + o.Service[1:], API: api})
+	api := cqrsData(o)
+	api.Method = strings.ToLower(o.Method)
+	api.Body = o.Method == http.MethodPost || o.Method == http.MethodPut || o.Method == http.MethodPatch
+	files, err := render("api", data{Module: module, Service: o.Service, Context: o.Context, ServiceType: strings.ToUpper(o.Service[:1]) + o.Service[1:], API: api})
 	if o.Method == "" {
 		delete(files, "api/http/routes/"+o.Service+"_"+api.File+".yaml")
 	}

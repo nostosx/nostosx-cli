@@ -14,6 +14,7 @@ import (
  "[[.Module]]/infrastructure/config"
  "[[.Module]]/infrastructure/logging"
  "[[.Module]]/infrastructure/server"
+ serviceapp "[[.Module]]/services/[[.Service]]/internal/application"
 [[if .MySQL]]mysqlinfra "[[.Module]]/infrastructure/database/mysql"[[end]]
 [[if .Postgres]]postgresinfra "[[.Module]]/infrastructure/database/postgres"[[end]]
 [[if .Kafka]]kafkainfra "[[.Module]]/infrastructure/messaging/kafka"[[end]]
@@ -63,6 +64,8 @@ func Run(ctx context.Context, cfg config.Config) (err error) {
 
 // Register mounts transport handlers. Construct fallible dependencies before calling it.
 func Register([[if .HTTP]]http *httpx.Server[[end]][[if and .HTTP .GRPC]], [[end]][[if .GRPC]]registrar grpc.ServiceRegistrar[[end]]) {
- [[if .HTTP]]httpport.Register(http)[[end]]
- [[if .GRPC]]pb.Register[[.ServiceType]]ServiceServer(registrar, &rpcport.Handler{})[[end]]
+ commands := serviceapp.NewCommand(serviceapp.CommandDeps{})
+ queries := serviceapp.NewQuery(serviceapp.QueryDeps{})
+ [[if .HTTP]]httpport.Register(http, httpport.New[[.ServiceType]]Server(commands,queries))[[end]]
+ [[if .GRPC]]pb.Register[[.ServiceType]]ServiceServer(registrar, rpcport.New[[.ServiceType]]Server(commands,queries))[[end]]
 }

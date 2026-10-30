@@ -1,0 +1,45 @@
+package studio
+
+import (
+ "context"
+ "io"
+ "net"
+ "net/http"
+ "net/http/httptest"
+ "strings"
+ "testing"
+
+ pb "example.com/cqrs/api/gen/go/studio/v1"
+ serviceapp "example.com/cqrs/services/studio/internal/application"
+ "github.com/nostosx/servex-contrib/transport/httpx"
+ "github.com/nostosx/servex/cqrs"
+ "google.golang.org/grpc"
+ "google.golang.org/grpc/codes"
+ "google.golang.org/grpc/credentials/insecure"
+ "google.golang.org/grpc/status"
+)
+
+func TestGeneratedCQRS(t *testing.T){
+ serviceapp.ObservedAssemblies=0;serviceapp.ObservedCalls.Store(0)
+ server:=httpx.NewServer()
+ rpc:=grpc.NewServer()
+ Register(server,rpc)
+ httpServer:=httptest.NewServer(server);defer httpServer.Close()
+ listener,err:=net.Listen("tcp","127.0.0.1:0");if err!=nil{t.Fatal(err)}
+ done:=make(chan error,1);go func(){done<-rpc.Serve(listener)}()
+ defer func(){rpc.Stop();if err:=<-done;err!=nil{t.Error(err)}}()
+ conn,err:=grpc.NewClient(listener.Addr().String(),grpc.WithTransportCredentials(insecure.NewCredentials()));if err!=nil{t.Fatal(err)};defer conn.Close()
+ client:=pb.NewStudioServiceClient(conn)
+ for _,tc:=range []struct{name,id string;httpCode int;rpcCode codes.Code}{{"success","42",200,codes.OK},{"error","invalid",400,codes.InvalidArgument}}{t.Run(tc.name,func(t *testing.T){
+  req,err:=http.NewRequestWithContext(t.Context(),http.MethodGet,httpServer.URL+"/orders/"+tc.id,nil);if err!=nil{t.Fatal(err)}
+  response,err:=httpServer.Client().Do(req);if err!=nil{t.Fatal(err)}
+  body,err:=io.ReadAll(response.Body);closeErr:=response.Body.Close();if err!=nil||closeErr!=nil||response.StatusCode!=tc.httpCode{t.Fatalf("HTTP=%d body=%s err=%v/%v",response.StatusCode,body,err,closeErr)}
+  if _,err:=client.GetOrder(t.Context(),&pb.GetOrderRequest{OrderId:tc.id});status.Code(err)!=tc.rpcCode{t.Fatal(err)}
+ })}
+ if serviceapp.ObservedAssemblies!=1||serviceapp.ObservedMetadata.Kind!=cqrs.KindQuery||serviceapp.ObservedMetadata.Operation!="creation.get_order"||serviceapp.ObservedCalls.Load()!=4{t.Fatalf("assembly=%d meta=%+v calls=%d",serviceapp.ObservedAssemblies,serviceapp.ObservedMetadata,serviceapp.ObservedCalls.Load())}
+ req,err:=http.NewRequestWithContext(t.Context(),http.MethodPost,httpServer.URL+"/orders",strings.NewReader("{}"));if err!=nil{t.Fatal(err)}
+ response,err:=httpServer.Client().Do(req);if err!=nil{t.Fatal(err)};response.Body.Close()
+ if response.StatusCode!=http.StatusNotImplemented{t.Fatalf("unimplemented command: %d",response.StatusCode)}
+ ctx,cancel:=context.WithCancel(t.Context());cancel()
+ if _,err:=client.GetOrder(ctx,&pb.GetOrderRequest{OrderId:"42"});status.Code(err)!=codes.Canceled{t.Fatal(err)}
+}

@@ -3,13 +3,13 @@ package rpc
 import (
  "context"
 
- "google.golang.org/grpc/codes"
- "google.golang.org/grpc/status"
-
  pb "[[.Module]]/api/gen/go/[[.Service]]/v1"
+ rpcinfra "[[.Module]]/infrastructure/rpc"
 )
 
-// [[.API.RPC]] is the transport entry point. Implement authorization and the application call here.
-func (*Handler) [[.API.RPC]](context.Context, *pb.[[.API.RPC]]Request) (*pb.[[.API.RPC]]Response, error) {
- return nil, status.Error(codes.Unimplemented, "NOT_IMPLEMENTED")
+// [[.API.RPC]] translates the protocol and invokes the injected application handler.
+func (s *[[.ServiceType]]Server) [[.API.RPC]](ctx context.Context, request *pb.[[.API.RPC]]Request) (*pb.[[.API.RPC]]Response, error) {
+ result, err := s.[[if eq .API.Kind "command"]]commands[[else]]queries[[end]].[[.API.Field]].Handle(ctx, map[[.API.RPC]]Request(request))
+ if err != nil { return nil, rpcinfra.Error(ctx, err) }
+ return map[[.API.RPC]]Response(result), nil
 }

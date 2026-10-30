@@ -115,21 +115,21 @@ func forGeneratedVariants(t *testing.T, cli, source string, check func(*testing.
 
 func extendProject(t *testing.T, cli, source, project string) {
 	t.Helper()
-	for _, kind := range []string{"context", "service"} {
-		runProject(t, source, cli, "add", kind, "order", "--dir", project)
-	}
+	runProject(t, source, cli, "add", "context", "commerce", "--dir", project)
+	runProject(t, source, cli, "add", "service", "order", "--dir", project)
 	server := read(t, filepath.Join(project, "infrastructure/server/server.go"))
 	hasHTTP := strings.Contains(server, "*httpx.Server")
 	_, protoErr := os.Stat(filepath.Join(project, "buf.yaml"))
 	hasGRPC := protoErr == nil
 	if hasHTTP {
-		runProject(t, source, cli, "add", "api", "create-order", "--service", "order", "--method", "POST", "--path", "/v1/orders", "--dir", project)
-		runProject(t, source, cli, "add", "api", "get-order", "--service", "order", "--method", "GET", "--path", "/v1/orders/{order_id}", "--dir", project)
+		runProject(t, source, cli, "add", "api", "--context", "commerce", "create-order", "--service", "order", "--method", "POST", "--path", "/v1/orders", "--dir", project)
+		runProject(t, source, cli, "add", "api", "--context", "commerce", "get-order", "--service", "order", "--method", "GET", "--path", "/v1/orders/{order_id}", "--dir", project)
 	}
 	if hasGRPC {
-		runProject(t, source, cli, "add", "api", "ping", "--transport", "grpc", "--service", "order", "--dir", project)
+		runProject(t, source, cli, "add", "api", "--context", "commerce", "ping", "--transport", "grpc", "--kind", "query", "--service", "order", "--dir", project)
 		if hasHTTP {
-			runProject(t, source, cli, "add", "api", "gateway-order", "--transport", "gateway", "--service", "order", "--method", "GET", "--path", "/v1/gateway/orders/{order_id}", "--dir", project)
+			runProject(t, source, cli, "add", "api", "--context", "commerce", "get-order", "--transport", "grpc", "--kind", "query", "--service", "order", "--dir", project)
+			runProject(t, source, cli, "add", "api", "--context", "commerce", "gateway-order", "--transport", "gateway", "--service", "order", "--method", "GET", "--path", "/v1/gateway/orders/{order_id}", "--dir", project)
 		}
 		proto := filepath.Join(project, "api/proto/order/v1/order.proto")
 		code := read(t, proto)

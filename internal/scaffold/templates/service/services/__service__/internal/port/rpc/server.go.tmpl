@@ -1,0 +1,19 @@
+// Package rpc maps protocol requests to the service application handler aggregates.
+package rpc
+
+import (
+ pb "[[.Module]]/api/gen/go/[[.Service]]/v1"
+
+ serviceapp "[[.Module]]/services/[[.Service]]/internal/application"
+)
+
+// [[.ServiceType]]Server owns protocol conversion, not application behavior.
+type [[.ServiceType]]Server struct {
+ pb.Unimplemented[[.ServiceType]]ServiceServer
+ commands *serviceapp.Command
+ queries *serviceapp.Query
+}
+
+func New[[.ServiceType]]Server(commands *serviceapp.Command, queries *serviceapp.Query) *[[.ServiceType]]Server {
+ return &[[.ServiceType]]Server{commands: commands, queries: queries}
+}

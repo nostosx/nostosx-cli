@@ -19,14 +19,14 @@ type handlerMethod struct {
 	imports     map[string]string
 }
 
-func handlerMethods(ctx context.Context, root *os.Root, dir string, packageNames map[string]string) (map[string]handlerMethod, error) {
+func handlerMethods(ctx context.Context, root *os.Root, dir, server string, packageNames map[string]string) (map[string]handlerMethod, error) {
 	methods := make(map[string]handlerMethod)
 	err := scanAPIFiles(ctx, root, dir, ".go", func(name string, b []byte) error {
 		if path.Dir(name) != dir || strings.HasSuffix(name, "_test.go") {
 			return nil
 		}
 		if platformFile(name) {
-			return fmt.Errorf("adapter %s is platform-specific; scaffold requires unconditional Handler methods", name)
+			return fmt.Errorf("adapter %s is platform-specific; scaffold requires unconditional Server methods", name)
 		}
 		file, err := parser.ParseFile(token.NewFileSet(), name, b, parser.ParseComments)
 		if err != nil {
@@ -38,7 +38,7 @@ func handlerMethods(ctx context.Context, root *os.Root, dir string, packageNames
 		for _, group := range file.Comments {
 			for _, comment := range group.List {
 				if strings.HasPrefix(comment.Text, "//go:build") || strings.HasPrefix(comment.Text, "// +build") {
-					return fmt.Errorf("adapter %s has build constraints; scaffold requires unconditional Handler methods", name)
+					return fmt.Errorf("adapter %s has build constraints; scaffold requires unconditional Server methods", name)
 				}
 			}
 		}
@@ -59,11 +59,11 @@ func handlerMethods(ctx context.Context, root *os.Root, dir string, packageNames
 		}
 		for _, decl := range file.Decls {
 			method, ok := decl.(*ast.FuncDecl)
-			if !ok || method.Recv == nil || receiverName(method.Recv.List[0].Type) != "Handler" {
+			if !ok || method.Recv == nil || receiverName(method.Recv.List[0].Type) != server {
 				continue
 			}
 			if _, exists := methods[method.Name.Name]; exists {
-				return fmt.Errorf("duplicate Handler.%s", method.Name.Name)
+				return fmt.Errorf("duplicate %s.%s", server, method.Name.Name)
 			}
 			methods[method.Name.Name] = handlerMethod{declaration: method, imports: imports}
 		}
